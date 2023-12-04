@@ -17,7 +17,7 @@ Basic audio playback:
 #include <EstAudio.h>
 
 int main(int argc, char** argv) {
-    EST_DeviceInit(2, 44100);
+    EST_DeviceInit(44100, 2); // 44.1hz and stereo
 
     EHANDLE handle;
     EST_RESULT result = EST_SampleLoad(argv[1], &handle);
@@ -43,7 +43,7 @@ Load from memory:
 #include <EstAudio.h>
 
 int main(int argc, char** argv) {
-    EST_DeviceInit(2, 44100);
+    EST_DeviceInit(44100, 2); // 44.1hz and stereo
 
     // Load the sample from memory
     const char* data = /* ... */;
@@ -73,7 +73,7 @@ Timestretching:
 #include <EstAudio.h>
 
 int main(int argc, char** argv) {
-    EST_DeviceInit(2, 44100);
+    EST_DeviceInit(44100, 2); // 44.1hz and stereo
 
     EHANDLE handle;
     EST_RESULT result = EST_SampleLoad(argv[1], &handle);
