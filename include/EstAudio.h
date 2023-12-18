@@ -1,83 +1,31 @@
 #ifndef __EST_AUDIO_H
 #define __EST_AUDIO_H
 
-// clang-format off
-#ifndef __API_H_
-	#if defined(EST_EXPORT)
-		#if defined(_WIN32)
-			#define EST_API __declspec(dllexport)
-		#elif defined(__GNUC__)
-			#define EST_API __attribute__((visibility("default")))
-		#endif
-	#else
-		#if defined(_WIN32)
-			#define EST_API __declspec(dllimport)
-		#elif defined(__GNUC__)
-			#define EST_API
-		#endif
-	#endif
-#endif
-// clang-format on
+#include "EstTypes.h"
 
 #if __cplusplus
 extern "C" {
 #endif
 
-enum EST_BOOL {
-    EST_FALSE = 0,
-    EST_TRUE = 1
-};
-
-enum EST_RESULT {
-    EST_OK = 0,
-    EST_ERROR = 1,
-
-    EST_OUT_OF_MEMORY = 2,
-    EST_INVALID_ARGUMENT = 3,
-    EST_INVALID_STATE = 4,
-    EST_INVALID_OPERATION = 5,
-    EST_INVALID_FORMAT = 6,
-    EST_INVALID_DATA = 7,
-    EST_TIMEDOUT = 8,
-};
-
-enum EST_ATTRIBUTE {
-    EST_ATTRIB_VOLUME = 0,
-    EST_ATTRIB_RATE = 1,
-    EST_ATTRIB_PITCH = 2,
-    EST_ATTRIB_PAN = 3,
-    EST_ATTRIB_LOOPING = 4,
-};
-
-enum EST_STATUS {
-    EST_STATUS_IDLE,
-    EST_STATUS_PLAYING,
-    EST_STATUS_AT_END
-};
-
-typedef unsigned int EHANDLE;
-typedef unsigned int EUINT32;
-#define INVALID_HANDLE -1
-
-typedef void (*est_audio_callback)(EHANDLE pHandle, void *pUserData, void *pData, int frameCount);
-
 // Initialize the audio system
 // Params:
 // sampleRate - The sample rate of the audio system
-// channels - The number of channels of the audio system
+// flags - The device flags
 // Returns:
 // EST_OK - The audio system was initialized successfully
 // EST_OUT_OF_MEMORY - The audio system failed to initialize due to lack of memory
 // EST_INVALID_ARGUMENT - The audio system failed to initialize due to invalid arguments
 // EST_INVALID_STATE - The audio system failed to initialize due to invalid state (Already initialized)
 // EST_INVALID_OPERATION - The audio system failed to initialize due to backend issues
-EST_API enum EST_RESULT EST_DeviceInit(int sampleRate, int channels);
+EST_API enum EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags);
+
+EST_API enum EST_RESULT EST_GetInfo(est_device_info* info);
 
 // Shutdown the audio system
 // Returns:
 // EST_OK - The audio system was shutdown successfully
 // EST_INVALID_STATE - The audio system failed to shutdown due to invalid state (Not initialized)
-EST_API enum EST_RESULT EST_DeviceShutdown();
+EST_API enum EST_RESULT EST_DeviceFree();
 
 // Get the sample rate of the audio system
 // Params:
@@ -102,6 +50,21 @@ EST_API enum EST_RESULT EST_SampleLoad(const char *path, EHANDLE *handle);
 // EST_INVALID_STATE - The sample failed to load due to invalid state (Not initialized)
 EST_API enum EST_RESULT EST_SampleLoadMemory(const void *data, int size, EHANDLE *handle);
 
+// Load a raw PCM audio sample
+// Note: Must be in format 32-bit float, 2 channel interleaved
+// Params:
+// data - The data of the audio file
+// pcmSize - The size of raw audio in pcm size
+// channels - The number of channels of the audio file
+// sampleRate - The sample rate of the audio file
+// handle - The handle to the audio sample
+// Returns:
+// EST_OK - The sample was loaded successfully
+// EST_OUT_OF_MEMORY - The sample failed to load due to lack of memory
+// EST_INVALID_ARGUMENT - The sample failed to load due to invalid arguments
+// EST_INVALID_STATE - The sample failed to load due to invalid state (Not initialized)
+EST_API enum EST_RESULT EST_SampleLoadRawPCM(const void *data, int pcmSize, int channels, int sampleRate, EHANDLE *handle);
+
 // Unload the audio sample
 // Params:
 // handle - The handle to the audio sample
@@ -109,7 +72,7 @@ EST_API enum EST_RESULT EST_SampleLoadMemory(const void *data, int size, EHANDLE
 // EST_OK - The sample was unloaded successfully
 // EST_INVALID_ARGUMENT - The sample failed to unload due to invalid arguments
 // EST_INVALID_STATE - The sample failed to unload due to invalid state (Not initialized)
-EST_API enum EST_RESULT EST_SampleUnload(EHANDLE handle);
+EST_API enum EST_RESULT EST_SampleFree(EHANDLE handle);
 
 // Play the audio sample
 // This also resets the sample to the beginning
@@ -149,7 +112,7 @@ EST_API enum EST_RESULT EST_SampleGetStatus(EHANDLE handle, enum EST_STATUS *val
 // EST_OK - The sample attribute was set successfully
 // EST_INVALID_ARGUMENT - The sample failed to set the attribute due to invalid arguments
 // EST_INVALID_STATE - The sample failed to play due to invalid state (Not initialized)
-EST_API enum EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE attribute, float value);
+EST_API enum EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value);
 
 // Get the attribute of the audio sample
 // Params:
@@ -160,7 +123,7 @@ EST_API enum EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUT
 // EST_OK - The sample attribute was set successfully
 // EST_INVALID_ARGUMENT - The sample failed to set the attribute due to invalid arguments
 // EST_INVALID_STATE - The sample failed to play due to invalid state (Not initialized)
-EST_API enum EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE attribute, float *value);
+EST_API enum EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value);
 
 EST_API enum EST_RESULT EST_SampleSetCallback(EHANDLE handle, est_audio_callback callback, void *userdata);
 EST_API enum EST_RESULT EST_SampleSetGlobalCallback(est_audio_callback callback, void *userdata);

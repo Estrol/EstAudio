@@ -50,18 +50,30 @@ struct EST_Attribute
     bool  looping = false;
 };
 
+struct EST_RawAudio
+{
+    ma_audio_buffer decoder = {};
+
+    std::vector<float> PCMData;
+    int PCMSize = 0;
+};
+
 struct EST_AudioSample
 {
+    int channels = 0;
+
     bool isInit = false;
     bool isPlaying = false;
     bool isAtEnd = false;
     bool isRemoved = false;
 
     EST_Attribute attributes = {};
+    std::shared_ptr<EST_RawAudio> rawAudio;
 
     ma_decoder                          decoder = {};
     ma_panner                           panner = {};
     ma_gainer                           gainer = {};
+    ma_channel_converter converter = {};
     std::shared_ptr<EST_AudioResampler> pitch = {};
 
     std::vector<EST_AudioCallback> callbacks;
@@ -75,7 +87,14 @@ struct EST_AudioDestructor
             return;
         }
 
-        ma_decoder_uninit(&sample->decoder);
+        if (sample->rawAudio) {
+            ma_audio_buffer_uninit(&sample->rawAudio->decoder);
+        }
+        else {
+            ma_decoder_uninit(&sample->decoder);
+        }
+
+        ma_channel_converter_uninit(&sample->converter, nullptr);
         ma_gainer_uninit(&sample->gainer, nullptr);
     }
 };
@@ -94,6 +113,7 @@ struct EST_ResamplerDestructor
 };
 
 namespace {
+    constexpr int kMaxChannels = 2;
     static EHANDLE g_handleCounter = 0;
 
     std::shared_ptr<EST_AudioDevice>                              g_device;
@@ -115,7 +135,7 @@ namespace {
         std::fill(temp.begin(), temp.begin() + byteSize, 0.0f);
         std::fill(temp2.begin(), temp2.begin() + byteSize, 0.0f);
 
-        ma_uint32 tempCapInFrames = temp.size() / channels;
+        ma_uint32 tempCapInFrames = static_cast<int>(temp.size()) / channels;
         ma_uint32 totalFramesRead = 0;
 
         while (totalFramesRead < frameCount) {
@@ -136,27 +156,42 @@ namespace {
                     &framesToReadThisIteration);
             }
 
-            result = ma_decoder_read_pcm_frames(&sample->decoder, &temp[0], framesToReadThisIteration, &framesReadThisIteration);
-            if (result != MA_SUCCESS || framesReadThisIteration == 0) {
-                break;
+            if (sample->rawAudio) {
+                framesReadThisIteration = ma_audio_buffer_read_pcm_frames(&sample->rawAudio->decoder, &temp[0], framesToReadThisIteration, MA_FALSE);
+                if (framesReadThisIteration == 0) {
+                    break;
+                }
+            }
+            else {
+                result = ma_decoder_read_pcm_frames(&sample->decoder, &temp[0], framesToReadThisIteration, &framesReadThisIteration);
+                if (result != MA_SUCCESS || framesReadThisIteration == 0) {
+                    break;
+                }
+            }
+
+            if (sample->channels != g_device->channels) {
+                ma_channel_converter_process_pcm_frames(&sample->converter, &temp2[0], &temp[0], framesReadThisIteration);
+
+                std::fill(temp.begin(), temp.begin() + byteSize, 0.0f);
+                std::copy(&temp2[0], &temp2[0] + framesReadThisIteration * g_device->channels, &temp[0]);
             }
 
             if (sample->attributes.rate != 1.0f) {
+                result = ma_resampler_process_pcm_frames(&sample->pitch->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
+
+                if (result != MA_SUCCESS) {
+                    break;
+                }
+
+                framesReadThisIteration = expectedToReadThisIteration;
+
                 if (!sample->pitch->isPitched) {
-                    sample->pitch->processor->process(temp, framesReadThisIteration, temp2, expectedToReadThisIteration);
-
-                    framesReadThisIteration = expectedToReadThisIteration;
-
-                    std::copy(temp2.begin(), temp2.begin() + framesReadThisIteration * channels, temp.begin());
+                    sample->pitch->processor->process(
+                        temp2, 
+                        static_cast<int>(framesReadThisIteration), 
+                        temp, 
+                        static_cast<int>(framesReadThisIteration));
                 } else {
-                    result = ma_resampler_process_pcm_frames(&sample->pitch->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
-
-                    if (result != MA_SUCCESS) {
-                        break;
-                    }
-
-                    framesReadThisIteration = expectedToReadThisIteration;
-
                     std::copy(temp2.begin(), temp2.begin() + framesReadThisIteration * channels, temp.begin());
                 }
             }
@@ -173,7 +208,7 @@ namespace {
 
             /* Mix the frames together. */
             for (iSample = 0; iSample < framesReadThisIteration * channels; ++iSample) {
-                pOutput[totalFramesRead * channels + iSample] += temp[iSample];
+                pOutput[totalFramesRead * channels + iSample] += temp[iSample]; //std::clamp(temp[iSample], -1.0f, 1.0f);
             }
 
             totalFramesRead += (ma_uint32)framesReadThisIteration;
@@ -214,11 +249,12 @@ namespace {
         for (auto &[handle, sample] : g_samples) {
             if (sample->isPlaying) {
                 ma_uint32 pcmReaded = data_mix_pcm(handle, sample, pOutputFloat, frameCount);
+
                 if (pcmReaded < frameCount) {
                     if (sample->attributes.looping) {
                         ma_decoder_seek_to_pcm_frame(&sample->decoder, 0);
                     } else {
-                        sample->isAtEnd = false;
+                        sample->isAtEnd = true;
                         sample->isPlaying = false;
                     }
                 }
@@ -233,37 +269,40 @@ namespace {
 
         if (g_device->callbacks.size()) {
             for (auto &it : g_device->callbacks) {
-                it.callback(-1, it.userdata, pOutputFloat, frameCount);
+                it.callback((EHANDLE)INVALID_HANDLE, it.userdata, pOutputFloat, frameCount);
             }
         }
+
+        int frameCountInBytes = frameCount * g_device->channels;
+        for (int i = 0; i < frameCountInBytes; i++) {
+            pOutputFloat[i] = std::clamp(pOutputFloat[i], -1.0f, 1.0f);
+        }
+
+        (void)pObject;
+        (void)pInput;
     }
 } // namespace
 
-EST_RESULT EST_DeviceInit(int sampleRate, int channels)
+EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags)
 {
-    if (channels != 2) {
-        EST_SetError("Only stereo supported right now");
-        return EST_INVALID_ARGUMENT;
-    }
-
     if (g_device) {
         EST_SetError("Already intialized");
-        return EST_INVALID_OPERATION;
+        return EST_ERROR_INVALID_OPERATION;
     }
 
     try {
         g_device = std::make_shared<EST_AudioDevice>();
     } catch (std::bad_alloc &alloc) {
         EST_SetError(alloc.what());
-        return EST_OUT_OF_MEMORY;
+        return EST_ERROR_OUT_OF_MEMORY;
+    }
+
+    int channels = 2;
+    if (flags & EST_DEVICE_MONO) {
+        channels = 1;
     }
 
     g_device->channels = channels;
-
-    if (ma_context_init(NULL, 0, NULL, &g_device->context) != MA_SUCCESS) {
-        EST_SetError("Failed to initialize audio context");
-        return EST_INVALID_OPERATION;
-    }
 
     ma_device_config config = ma_device_config_init(ma_device_type_playback);
     config.playback.format = ma_format_f32;
@@ -273,34 +312,50 @@ EST_RESULT EST_DeviceInit(int sampleRate, int channels)
     config.periodSizeInMilliseconds = 0;
     config.pUserData = NULL;
 
-    if (ma_device_init(&g_device->context, &config, &g_device->device) != MA_SUCCESS) {
+    auto result = ma_device_init(NULL, &config, &g_device->device);
+    if (result != MA_SUCCESS) {
         EST_SetError("Failed to initialize audio device");
         ma_context_uninit(&g_device->context);
-        return EST_INVALID_OPERATION;
+        return EST_ERROR_INVALID_OPERATION;
     }
 
     if (ma_device_start(&g_device->device) != MA_SUCCESS) {
         EST_SetError("Failed to start audio device");
         ma_device_uninit(&g_device->device);
         ma_context_uninit(&g_device->context);
-        return EST_INVALID_OPERATION;
+        return EST_ERROR_INVALID_OPERATION;
     }
 
-    g_device->temporaryData.resize(4095 * channels);
-    g_device->processingData.resize(4095 * channels);
+    g_device->temporaryData.resize(4095 * kMaxChannels);
+    g_device->processingData.resize(4095 * kMaxChannels);
 
     return EST_OK;
 }
 
-EST_RESULT EST_DeviceShutdown()
+EST_RESULT EST_GetInfo(est_device_info* info)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
+    }
+
+    info->channels = g_device->channels;
+    info->deviceIndex = -1;
+    info->sampleRate = g_device->device.sampleRate;
+    info->flags = EST_DEVICE_UNKNOWN;
+
+    return EST_OK;
+}
+
+EST_RESULT EST_DeviceFree()
+{
+    if (!g_device) {
+        EST_SetError("No context");
+        return EST_ERROR_INVALID_STATE;
     }
 
     for (auto &it : g_samples) {
-        EST_SampleUnload(it.first);
+        EST_SampleFree(it.first);
     }
 
     while (g_samples.size() > 0) {
@@ -308,30 +363,30 @@ EST_RESULT EST_DeviceShutdown()
     }
 
     ma_device_uninit(&g_device->device);
-    ma_context_uninit(&g_device->context);
+    //ma_context_uninit(&g_device->context);
 
     g_device.reset();
 
     return EST_OK;
 }
 
-EST_RESULT InternalInit(std::shared_ptr<EST_AudioSample> sample, EHANDLE *handle)
+EST_RESULT InternalInit(std::shared_ptr<EST_AudioSample> sample, ma_format format, int channels, int sampleRate, EHANDLE *handle)
 {
-    ma_panner_config pannerConfig = ma_panner_config_init(sample->decoder.outputFormat, sample->decoder.outputChannels);
+    ma_panner_config pannerConfig = ma_panner_config_init(format, channels);
     if (ma_panner_init(&pannerConfig, &sample->panner) != MA_SUCCESS) {
         EST_SetError("Failed to initialize panner");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    ma_gainer_config gainerConfig = ma_gainer_config_init(sample->decoder.outputChannels, 0);
+    ma_gainer_config gainerConfig = ma_gainer_config_init(channels, 0);
     if (ma_gainer_init(&gainerConfig, nullptr, &sample->gainer) != MA_SUCCESS) {
         EST_SetError("Failed to initialize gainer");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     ma_resampler_config resamplerConfig = ma_resampler_config_init(
-        sample->decoder.outputFormat,
-        sample->decoder.outputChannels,
+        format,
+        channels,
         g_device->device.sampleRate,
         g_device->device.sampleRate,
         ma_resample_algorithm_linear);
@@ -342,20 +397,33 @@ EST_RESULT InternalInit(std::shared_ptr<EST_AudioSample> sample, EHANDLE *handle
         pitch = std::shared_ptr<EST_AudioResampler>(new EST_AudioResampler, EST_ResamplerDestructor{});
     } catch (std::bad_alloc &alloc) {
         EST_SetError(alloc.what());
-        return EST_OUT_OF_MEMORY;
+        return EST_ERROR_OUT_OF_MEMORY;
     }
 
     pitch->processor = std::make_shared<SignalsmithStretch>();
-    pitch->processor->presetDefault(sample->decoder.outputChannels, sample->decoder.outputSampleRate);
+    pitch->processor->presetCheaper(channels, static_cast<float>(sampleRate));
 
     if (ma_resampler_init(&resamplerConfig, nullptr, &pitch->resampler) != MA_SUCCESS) {
         EST_SetError("Failed to initialize gainer");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    ma_channel_converter_config chConfig = ma_channel_converter_config_init(
+        format,                         // Sample format
+        channels,                       // Input channels
+        NULL,                           // Input channel map
+        g_device->channels,             // Output channels
+        NULL,                           // Output channel map
+        ma_channel_mix_mode_default);   // The mixing algorithm to use when combining channels.
+
+    if (ma_channel_converter_init(&chConfig, nullptr, &sample->converter)) {
+        EST_SetError("Failed to initialize channel converter");
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     pitch->isInit = true;
     sample->isInit = true;
-
+    sample->channels = channels;
     sample->pitch = pitch;
 
     EHANDLE id = g_handleCounter++;
@@ -379,18 +447,26 @@ EST_RESULT EST_SampleLoad(const char *path, EHANDLE *handle)
         sample = std::shared_ptr<EST_AudioSample>(new EST_AudioSample, EST_AudioDestructor{});
     } catch (std::bad_alloc &alloc) {
         EST_SetError(alloc.what());
-        return EST_OUT_OF_MEMORY;
+        return EST_ERROR_OUT_OF_MEMORY;
     }
 
-    ma_result         result = MA_SUCCESS;
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 2, 44100);
+
+    ma_decoding_backend_vtable *pCustomBackendVTables[] = {
+        &g_ma_decoding_backend_vtable_libvorbis,
+        &g_ma_decoding_backend_vtable_libopus
+    };
+
+    config.pCustomBackendUserData = NULL;
+    config.ppCustomBackendVTables = pCustomBackendVTables;
+    config.customBackendCount = sizeof(pCustomBackendVTables) / sizeof(pCustomBackendVTables[0]);
 
     if (ma_decoder_init_file(path, &config, &sample->decoder) != MA_SUCCESS) {
         EST_SetError("Failed to load audio file");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    return InternalInit(sample, handle);
+    return InternalInit(sample, sample->decoder.outputFormat, sample->decoder.outputChannels, sample->decoder.outputSampleRate, handle);
 }
 
 EST_RESULT EST_SampleLoadMemory(const void *data, int size, EHANDLE *handle)
@@ -406,18 +482,72 @@ EST_RESULT EST_SampleLoadMemory(const void *data, int size, EHANDLE *handle)
         sample = std::shared_ptr<EST_AudioSample>(new EST_AudioSample, EST_AudioDestructor{});
     } catch (std::bad_alloc &alloc) {
         EST_SetError(alloc.what());
-        return EST_OUT_OF_MEMORY;
+        return EST_ERROR_OUT_OF_MEMORY;
     }
 
-    ma_result         result = MA_SUCCESS;
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 2, 44100);
+
+    ma_decoding_backend_vtable* pCustomBackendVTables[] = {
+        &g_ma_decoding_backend_vtable_libvorbis,
+        &g_ma_decoding_backend_vtable_libopus
+    };
+
+    config.pCustomBackendUserData = NULL;
+    config.ppCustomBackendVTables = pCustomBackendVTables;
+    config.customBackendCount = sizeof(pCustomBackendVTables) / sizeof(pCustomBackendVTables[0]);
 
     if (ma_decoder_init_memory(data, size, &config, &sample->decoder) != MA_SUCCESS) {
         EST_SetError("Failed to load audio file");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    return InternalInit(sample, handle);
+    return InternalInit(sample, sample->decoder.outputFormat, sample->decoder.outputChannels, sample->decoder.outputSampleRate, handle);
+}
+
+EST_RESULT EST_SampleLoadRawPCM(const void* data, int pcmSize, int channels, int sampleRate, EHANDLE* handle)
+{
+    if (!data) {
+        return EST_ERROR_INVALID_DATA;
+    }
+
+    int expectedDataSize = pcmSize * channels;
+
+    std::shared_ptr<EST_RawAudio> rawAudio;
+    std::shared_ptr<EST_AudioSample> sample;
+    try {
+        rawAudio = std::make_shared<EST_RawAudio>();
+        rawAudio->PCMData.resize(expectedDataSize);
+
+        sample = std::shared_ptr<EST_AudioSample>(new EST_AudioSample, EST_AudioDestructor{});
+    }
+    catch (const std::bad_alloc&)
+    {
+        EST_SetError("Out of memory!");
+        return EST_ERROR_OUT_OF_MEMORY;
+    }
+
+    //memcpy(&rawAudio->PCMData[0], data, expectedDataSize * sizeof(float));
+
+    const float* pFloatData = static_cast<const float*>(data);
+    std::copy(pFloatData, pFloatData + expectedDataSize, &rawAudio->PCMData[0]);
+    rawAudio->PCMSize = pcmSize;
+
+    ma_audio_buffer_config config = ma_audio_buffer_config_init(
+        ma_format_f32,
+        channels,
+        pcmSize,
+        &rawAudio->PCMData[0],
+        nullptr
+    );
+
+    auto result = ma_audio_buffer_init(&config, &rawAudio->decoder);
+    if (result != MA_SUCCESS) {
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    sample->rawAudio = rawAudio;
+
+    return InternalInit(sample, ma_format_f32, channels, sampleRate, handle);
 }
 
 std::shared_ptr<EST_AudioSample> GetSample(EHANDLE handle)
@@ -430,7 +560,7 @@ std::shared_ptr<EST_AudioSample> GetSample(EHANDLE handle)
     return it->second;
 }
 
-EST_RESULT EST_SampleUnload(EHANDLE handle)
+EST_RESULT EST_SampleFree(EHANDLE handle)
 {
     if (!g_device) {
         EST_SetError("No context");
@@ -452,18 +582,25 @@ EST_RESULT EST_SamplePlay(EHANDLE handle)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     it->isAtEnd = false;
     it->isPlaying = true;
-    ma_decoder_seek_to_pcm_frame(&it->decoder, 0);
+    it->pitch->processor->reset();
+
+    if (it->rawAudio) {
+        ma_audio_buffer_seek_to_pcm_frame(&it->rawAudio->decoder, 0);
+    }
+    else {
+        ma_decoder_seek_to_pcm_frame(&it->decoder, 0);
+    }
 
     return EST_OK;
 }
@@ -472,17 +609,22 @@ EST_RESULT EST_SampleStop(EHANDLE handle)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     it->isPlaying = false;
-    ma_decoder_seek_to_pcm_frame(&it->decoder, 0);
+    if (it->rawAudio) {
+        ma_audio_buffer_seek_to_pcm_frame(&it->rawAudio->decoder, 0);
+    }
+    else {
+        ma_decoder_seek_to_pcm_frame(&it->decoder, 0);
+    }
 
     return EST_OK;
 }
@@ -491,13 +633,13 @@ EST_RESULT EST_SampleGetStatus(EHANDLE handle, enum EST_STATUS *value)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     if (it->isPlaying) {
@@ -513,17 +655,17 @@ EST_RESULT EST_SampleGetStatus(EHANDLE handle, enum EST_STATUS *value)
     return EST_OK;
 }
 
-EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE attribute, float value)
+EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     switch (attribute) {
@@ -532,37 +674,37 @@ EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE attribute, 
             break;
         case EST_ATTRIB_RATE:
             it->attributes.rate = value;
-            // it->pitch->processor->setTransposeFactor(1.0f / value);
+            //it->pitch->processor->setTransposeFactor(1.0f / value);
             ma_resampler_set_rate(&it->pitch->resampler, (ma_uint32)(value * (float)it->decoder.outputSampleRate), it->decoder.outputSampleRate);
             break;
         case EST_ATTRIB_PITCH:
-            it->pitch->isPitched = value != 0.0f || static_cast<EST_BOOL>(value) == EST_TRUE;
+            it->pitch->isPitched = value != 0.0f;
             break;
         case EST_ATTRIB_PAN:
             ma_panner_set_pan(&it->panner, value);
             break;
         case EST_ATTRIB_LOOPING:
-            it->attributes.looping = value != 0.0f || static_cast<EST_BOOL>(value) == EST_TRUE;
+            it->attributes.looping = value != 0.0f;
             break;
         default:
             EST_SetError("Invalid attribute");
-            return EST_INVALID_ARGUMENT;
+            return EST_ERROR_INVALID_ARGUMENT;
     }
 
     return EST_OK;
 }
 
-EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE attribute, float *value)
+EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     switch (attribute) {
@@ -579,11 +721,11 @@ EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE attribute, 
             *value = ma_panner_get_pan(&it->panner);
             break;
         case EST_ATTRIB_LOOPING:
-            *value = static_cast<EST_BOOL>(it->attributes.looping);
+            *value = static_cast<float>(it->attributes.looping);
             break;
         default:
             EST_SetError("Invalid attribute");
-            return EST_INVALID_ARGUMENT;
+            return EST_ERROR_INVALID_ARGUMENT;
     }
 
     return EST_OK;
@@ -593,13 +735,13 @@ EST_RESULT EST_SampleSetVolume(EHANDLE handle, float volume)
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     ma_gainer_set_master_volume(&it->gainer, volume);
@@ -611,13 +753,13 @@ EST_RESULT EST_SampleSetCallback(EHANDLE handle, est_audio_callback callback, vo
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     auto it = GetSample(handle);
     if (!it) {
         EST_SetError("Invalid handle");
-        return EST_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     EST_AudioCallback callbackData = {};
@@ -633,7 +775,7 @@ EST_RESULT EST_SampleSetGlobalCallback(est_audio_callback callback, void *userda
 {
     if (!g_device) {
         EST_SetError("No context");
-        return EST_INVALID_STATE;
+        return EST_ERROR_INVALID_STATE;
     }
 
     EST_AudioCallback callbackData = {};
