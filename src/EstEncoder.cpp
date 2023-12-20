@@ -210,6 +210,49 @@ EST_RESULT EST_EncoderFree(EHANDLE handle)
     return EST_OK;
 }
 
+EST_RESULT EST_EncoderSeek(EHANDLE handle, int index)
+{
+    auto decoder = getDecoder(handle);
+    if (!decoder) {
+        EST_SetError("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+    
+    ma_decoder_seek_to_pcm_frame(&decoder->decoder, index);
+
+    // If using timestretch, we need to process initial buffer
+    if (decoder->rate != 1.0f || decoder->pitch != 1.0f) {
+        decoder->processor->reset();
+
+        int latency = decoder->processor->inputLatency() * 2;
+        int readed = 0;
+
+        std::vector<float> convertedData(latency * decoder->channels);
+
+        if (decoder->channels != (int)decoder->decoder.outputChannels) {
+            std::vector<float> encoderData(latency * decoder->decoder.outputChannels);
+
+            ma_uint64 ma_readed = 0;
+            ma_decoder_read_pcm_frames(&decoder->decoder, &encoderData[0], latency, &ma_readed);
+
+            ma_channel_converter_process_pcm_frames(&decoder->converter, &convertedData[0], &encoderData[0], ma_readed);
+
+            readed = static_cast<int>(ma_readed);
+        }
+        else {
+            ma_uint64 ma_readed = 0;
+            ma_decoder_read_pcm_frames(&decoder->decoder, &convertedData[0], latency, &ma_readed);
+
+            readed = static_cast<int>(ma_readed);
+        }
+
+        std::vector<float> outputProcess(convertedData.size());
+        decoder->processor->process(convertedData, readed, outputProcess, readed);
+    }
+
+    return EST_OK;
+}
+
 EST_RESULT EST_EncoderRender(EHANDLE handle)
 {
     auto decoder = getDecoder(handle);
@@ -243,7 +286,8 @@ EST_RESULT EST_EncoderRender(EHANDLE handle)
      * 5. -=- clipping
      */
 
-    ma_decoder_seek_to_pcm_frame(&decoder->decoder, 0);
+    EST_EncoderSeek(handle, 0);
+    
     while (true) {
         std::fill(buffer.begin(), buffer.end(), 0.0f);
         std::fill(temp.begin(), temp.end(), 0.0f);
@@ -307,6 +351,49 @@ EST_RESULT EST_EncoderRender(EHANDLE handle)
         decoder->numOfPcmProcessed += totalReadedThisIteration;
     }
 
+    // If using timestretch, we need to process the remaining buffer
+    if (decoder->rate != 1.0f || decoder->pitch != 1.0f) {
+        int outputBuffer = decoder->processor->outputLatency();
+
+        int currentCursor = 0;
+        while (currentCursor < outputBuffer) {
+            ma_uint64 frameToRead = targetRead;
+
+            if (currentCursor + targetRead > outputBuffer) {
+                frameToRead = outputBuffer - currentCursor;
+            }
+
+            std::fill(buffer.begin(), buffer.end(), 0.0f);
+            std::fill(temp.begin(), temp.end(), 0.0f);
+
+            decoder->processor->process(
+                temp,
+                0,
+                buffer,
+                static_cast<int>(frameToRead));
+
+            auto result = ma_gainer_process_pcm_frames(&decoder->gainer, &temp[0], &buffer[0], frameToRead);
+            if (result != MA_SUCCESS) {
+				break;
+			}
+
+            result = ma_panner_process_pcm_frames(&decoder->panner, &buffer[0], &temp[0], frameToRead);
+            if (result != MA_SUCCESS) {
+                break;
+            }
+
+            if (decoder->callback) {
+				decoder->callback(handle, decoder->userData, &buffer[0], static_cast<int>(frameToRead));
+			}
+
+            int sizeToCopy = static_cast<int>(frameToRead) * decoder->channels;
+			std::copy(&buffer[0], &buffer[0] + sizeToCopy, std::back_inserter(decoder->data));
+
+			currentCursor += static_cast<int>(frameToRead);
+        }
+	}
+
+    // Clip the audio data to prevent distortion
     for (int i = 0; i < decoder->data.size(); i++) {
         decoder->data[i] = std::clamp(decoder->data[i], -1.0f, 1.0f);
     }

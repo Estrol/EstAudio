@@ -36,6 +36,7 @@ struct EST_AudioResampler
 {
     bool isInit = false;
     bool isPitched = false;
+    bool isAtEnd = false;
 
     ma_resampler                        resampler = {};
     std::shared_ptr<SignalsmithStretch> processor = {};
@@ -220,7 +221,7 @@ namespace {
 
         if (sample->callbacks.size()) {
             for (auto &it : g_device->callbacks) {
-                it.callback(handle, it.userdata, pOutput, frameCount);
+                it.callback(handle, it.userdata, pOutput, totalFramesRead);
             }
         }
 
@@ -252,7 +253,12 @@ namespace {
 
                 if (pcmReaded < frameCount) {
                     if (sample->attributes.looping) {
-                        ma_decoder_seek_to_pcm_frame(&sample->decoder, 0);
+                        if (sample->rawAudio) {
+                            ma_audio_buffer_seek_to_pcm_frame(&sample->rawAudio->decoder, 0);
+                        }
+                        else {
+                            ma_decoder_seek_to_pcm_frame(&sample->decoder, 0);
+                        }
                     } else {
                         sample->isAtEnd = true;
                         sample->isPlaying = false;
@@ -574,6 +580,49 @@ EST_RESULT EST_SampleFree(EHANDLE handle)
     }
 
     it->isRemoved = true;
+
+    return EST_OK;
+}
+
+EST_RESULT EST_SampleSeek(EHANDLE handle, int index)
+{
+    auto decoder = GetSample(handle);
+    if (!decoder) {
+        EST_SetError("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    ma_decoder_seek_to_pcm_frame(&decoder->decoder, index);
+
+    // If using timestretch, we need to process initial buffer
+    if (decoder->attributes.rate != 1.0f || decoder->attributes.pitch != 1.0f) {
+        decoder->pitch->processor->reset();
+
+        int latency = decoder->pitch->processor->inputLatency() * 2;
+        int readed = 0;
+
+        std::vector<float> convertedData(latency * decoder->channels);
+
+        if (decoder->channels != (int)decoder->decoder.outputChannels) {
+            std::vector<float> encoderData(latency * decoder->decoder.outputChannels);
+
+            ma_uint64 ma_readed = 0;
+            ma_decoder_read_pcm_frames(&decoder->decoder, &encoderData[0], latency, &ma_readed);
+
+            ma_channel_converter_process_pcm_frames(&decoder->converter, &convertedData[0], &encoderData[0], ma_readed);
+
+            readed = static_cast<int>(ma_readed);
+        }
+        else {
+            ma_uint64 ma_readed = 0;
+            ma_decoder_read_pcm_frames(&decoder->decoder, &convertedData[0], latency, &ma_readed);
+
+            readed = static_cast<int>(ma_readed);
+        }
+
+        std::vector<float> outputProcess(convertedData.size());
+        decoder->pitch->processor->process(convertedData, readed, outputProcess, readed);
+    }
 
     return EST_OK;
 }

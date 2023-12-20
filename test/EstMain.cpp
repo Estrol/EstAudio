@@ -16,33 +16,28 @@ void data_callback(EHANDLE pHandle, void *pUserData, void *pData, int frameCount
 
 int main()
 {
-    auto result = EST_DeviceInit(44100, EST_DEVICE_STEREO);
-    if (result != EST_OK) {
-        printf("Failed to initialize device\n");
-        return 1;
-    }
+    EHANDLE hhandle;
+    EST_RESULT result = EST_EncoderLoad(
+        "test1-origin.wav",
+        NULL,//data_callback,
+        EST_DECODER_STEREO,
+        &hhandle);
+
+    result = EST_EncoderSetAttribute(hhandle, EST_ATTRIB_ENCODER_TEMPO, 1.5f);
+
+    EST_DeviceInit(44100, EST_DEVICE_STEREO);
 
     EHANDLE handle;
-    result = EST_EncoderLoad(
-        "test.wav",
-        data_callback,
-        EST_DECODER_STEREO,
-        &handle);
+    EST_EncoderGetSample(hhandle, &handle);
 
-    result = EST_EncoderSetAttribute(handle, EST_ATTRIB_ENCODER_TEMPO, 1.5f);
+    EST_SampleSetAttribute(handle, EST_ATTRIB_LOOPING, (EST_BOOL)EST_TRUE);
 
-    EHANDLE outHandle;
-    EST_EncoderGetSample(handle, &outHandle);
+    EST_SamplePlay(handle);
 
-    EST_EncoderFree(handle);
-
-    EST_SamplePlay(outHandle);
-
-    printf("Press Enter to quit...");
     (void)getchar();
 
-    EST_SampleFree(outHandle);
-
+    EST_SampleStop(handle);
+    EST_SampleFree(handle);
     EST_DeviceFree();
 
     return 0;
