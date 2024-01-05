@@ -19,7 +19,7 @@ extern "C" {
 // EST_INVALID_OPERATION - The audio system failed to initialize due to backend issues
 EST_API enum EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags);
 
-EST_API enum EST_RESULT EST_GetInfo(est_device_info* info);
+EST_API enum EST_RESULT EST_GetInfo(est_device_info *info);
 
 // Shutdown the audio system
 // Returns:
@@ -124,6 +124,32 @@ EST_API enum EST_RESULT EST_SampleSetAttribute(EHANDLE handle, enum EST_ATTRIBUT
 // EST_INVALID_ARGUMENT - The sample failed to set the attribute due to invalid arguments
 // EST_INVALID_STATE - The sample failed to play due to invalid state (Not initialized)
 EST_API enum EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value);
+
+// Slide the attribute over the time
+// Note: This is thread blocking function
+// Params:
+// handle - The handle to the audio sample
+// attribute - The attribute to set [see EST_ATTRIBUTE]
+// value - The value to set the attribute to
+// time - The time to how long the attribute slide it, 0 meaning instant
+// Returns:
+// EST_OK - The sample attribute was set successfully
+// EST_INVALID_ARGUMENT - The sample failed to set the attribute due to invalid arguments
+// EST_INVALID_STATE - The sample failed to play due to invalid state (Not initialized)
+EST_API enum EST_RESULT EST_SampleSlideAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value, float time);
+
+// Slide the attribute over the time
+// Note: This is async version (aka non-blocking) function
+// Params:
+// handle - The handle to the audio sample
+// attribute - The attribute to set [see EST_ATTRIBUTE]
+// value - The value to set the attribute to
+// time - The time to how long the attribute slide it, 0 meaning instant
+// Returns:
+// EST_OK - The sample attribute was set successfully
+// EST_INVALID_ARGUMENT - The sample failed to set the attribute due to invalid arguments
+// EST_INVALID_STATE - The sample failed to play due to invalid state (Not initialized)
+EST_API enum EST_RESULT EST_SampleSlideAttributeAsync(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value, float time);
 
 EST_API enum EST_RESULT EST_SampleSetCallback(EHANDLE handle, est_audio_callback callback, void *userdata);
 EST_API enum EST_RESULT EST_SampleSetGlobalCallback(est_audio_callback callback, void *userdata);

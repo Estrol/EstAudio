@@ -2,46 +2,42 @@
 #include "./third-party/signalsmith-stretch/signalsmith-stretch.h"
 #include "EstAudio.h"
 #include "third-party/miniaudio/miniaudio_decoders.h"
-#include <fstream>
 #include <algorithm>
+#include <fstream>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 
 using namespace signalsmith::stretch;
+constexpr int kESTEncoderSignature = 255 * 0xff;
 
 struct EST_Encoder
 {
-    void *userData = NULL;
+    const int Signature = kESTEncoderSignature;
+    void     *userData = NULL;
 
-    est_audio_callback callback = NULL;
-    std::vector<float> data;
+    est_encoder_callback callback = NULL;
+    std::vector<float>   data;
 
-    ma_decoder   decoder = {};
-    ma_gainer    gainer = {};
-    ma_panner    panner = {};
-    ma_resampler calculator = {};
+    ma_decoder           decoder = {};
+    ma_gainer            gainer = {};
+    ma_panner            panner = {};
+    ma_resampler         calculator = {};
     ma_channel_converter converter = {};
 
-    float rate = 1.0f;
-    float pitch = 1.0f;
-    float sampleRate = 44100;
-    int   numOfPcmProcessed = 0;
-    int   channels = 2;
+    float             rate = 1.0f;
+    float             pitch = 1.0f;
+    float             sampleRate = 44100;
+    int               numOfPcmProcessed = 0;
+    int               channels = 2;
     EST_DECODER_FLAGS flags = EST_DECODER_UNKNOWN;
 
     std::shared_ptr<SignalsmithStretch> processor;
 };
 
-namespace {
-    static EHANDLE decoderHandle = 0;
-    static int     maxThread = 16;
-
-    std::unordered_map<EHANDLE, std::shared_ptr<EST_Encoder>> decoders;
-} // namespace
-
-EST_RESULT InternalInit(std::shared_ptr<EST_Encoder> sample, ma_format format, int channels, int sampleRate, EHANDLE *handle)
+EST_RESULT InternalInit(EST_Encoder *sample, ma_format format, int channels, int sampleRate, ECHANDLE *handle)
 {
     ma_panner_config pannerConfig = ma_panner_config_init(format, channels);
     if (ma_panner_init(&pannerConfig, &sample->panner) != MA_SUCCESS) {
@@ -72,41 +68,33 @@ EST_RESULT InternalInit(std::shared_ptr<EST_Encoder> sample, ma_format format, i
     }
 
     ma_channel_converter_config chConfig = ma_channel_converter_config_init(
-        format,                         // Sample format
-        channels,                       // Input channels
-        NULL,                           // Input channel map
-        sample->channels,               // Output channels
-        NULL,                           // Output channel map
-        ma_channel_mix_mode_default);   // The mixing algorithm to use when combining channels.
+        format,                       // Sample format
+        channels,                     // Input channels
+        NULL,                         // Input channel map
+        sample->channels,             // Output channels
+        NULL,                         // Output channel map
+        ma_channel_mix_mode_default); // The mixing algorithm to use when combining channels.
 
     if (ma_channel_converter_init(&chConfig, nullptr, &sample->converter)) {
         EST_SetError("Failed to initialize channel converter");
-		return EST_ERROR_INVALID_ARGUMENT;
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
     sample->data.reserve(4095 * channels);
-
-    EHANDLE currentHandle = decoderHandle++;
-    decoders[currentHandle] = sample;
-
-    *handle = currentHandle;
+    *handle = reinterpret_cast<ECHANDLE>(sample);
 
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderLoad(const char *path, est_audio_callback callback, enum EST_DECODER_FLAGS flags, EHANDLE *decoder)
+EST_RESULT EST_EncoderLoad(const char *path, est_encoder_callback callback, enum EST_DECODER_FLAGS flags, ECHANDLE *decoder)
 {
     if (!path) {
         EST_SetError("Path is not defined");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    std::shared_ptr<EST_Encoder> instance;
-
-    try {
-        instance = std::make_shared<EST_Encoder>();
-    } catch (const std::bad_alloc &) {
-        EST_SetError("Out of memory");
+    EST_Encoder *instance = new EST_Encoder;
+    if (!instance) {
         return EST_ERROR_OUT_OF_MEMORY;
     }
 
@@ -139,19 +127,15 @@ EST_RESULT EST_EncoderLoad(const char *path, est_audio_callback callback, enum E
                         decoder);
 }
 
-EST_RESULT EST_EncoderLoadMemory(const void *data, int size, est_audio_callback callback, enum EST_DECODER_FLAGS flags, EHANDLE *decoder)
+EST_RESULT EST_EncoderLoadMemory(const void *data, int size, est_encoder_callback callback, enum EST_DECODER_FLAGS flags, ECHANDLE *decoder)
 {
     if (!data || size == 0) {
         EST_SetError("Path is not defined");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    std::shared_ptr<EST_Encoder> instance;
-
-    try {
-        instance = std::make_shared<EST_Encoder>();
-    } catch (const std::bad_alloc &) {
-        EST_SetError("Out of memory");
+    EST_Encoder *instance = new EST_Encoder;
+    if (!instance) {
         return EST_ERROR_OUT_OF_MEMORY;
     }
 
@@ -184,20 +168,10 @@ EST_RESULT EST_EncoderLoadMemory(const void *data, int size, est_audio_callback 
                         decoder);
 }
 
-std::shared_ptr<EST_Encoder> getDecoder(EHANDLE handle)
+EST_RESULT EST_EncoderFree(ECHANDLE handle)
 {
-    auto it = decoders.find(handle);
-    if (it == decoders.end()) {
-        return nullptr;
-    }
-
-    return it->second;
-}
-
-EST_RESULT EST_EncoderFree(EHANDLE handle)
-{
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -206,18 +180,18 @@ EST_RESULT EST_EncoderFree(EHANDLE handle)
     ma_gainer_uninit(&decoder->gainer, nullptr);
     ma_channel_converter_uninit(&decoder->converter, nullptr);
 
-    decoders.erase(handle);
+    delete decoder;
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderSeek(EHANDLE handle, int index)
+EST_RESULT EST_EncoderSeek(ECHANDLE handle, int index)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
-    
+
     ma_decoder_seek_to_pcm_frame(&decoder->decoder, index);
 
     // If using timestretch, we need to process initial buffer
@@ -238,8 +212,7 @@ EST_RESULT EST_EncoderSeek(EHANDLE handle, int index)
             ma_channel_converter_process_pcm_frames(&decoder->converter, &convertedData[0], &encoderData[0], ma_readed);
 
             readed = static_cast<int>(ma_readed);
-        }
-        else {
+        } else {
             ma_uint64 ma_readed = 0;
             ma_decoder_read_pcm_frames(&decoder->decoder, &convertedData[0], latency, &ma_readed);
 
@@ -253,10 +226,10 @@ EST_RESULT EST_EncoderSeek(EHANDLE handle, int index)
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderRender(EHANDLE handle)
+EST_RESULT EST_EncoderRender(ECHANDLE handle)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -287,7 +260,7 @@ EST_RESULT EST_EncoderRender(EHANDLE handle)
      */
 
     EST_EncoderSeek(handle, 0);
-    
+
     while (true) {
         std::fill(buffer.begin(), buffer.end(), 0.0f);
         std::fill(temp.begin(), temp.end(), 0.0f);
@@ -374,8 +347,8 @@ EST_RESULT EST_EncoderRender(EHANDLE handle)
 
             auto result = ma_gainer_process_pcm_frames(&decoder->gainer, &temp[0], &buffer[0], frameToRead);
             if (result != MA_SUCCESS) {
-				break;
-			}
+                break;
+            }
 
             result = ma_panner_process_pcm_frames(&decoder->panner, &buffer[0], &temp[0], frameToRead);
             if (result != MA_SUCCESS) {
@@ -383,15 +356,15 @@ EST_RESULT EST_EncoderRender(EHANDLE handle)
             }
 
             if (decoder->callback) {
-				decoder->callback(handle, decoder->userData, &buffer[0], static_cast<int>(frameToRead));
-			}
+                decoder->callback(handle, decoder->userData, &buffer[0], static_cast<int>(frameToRead));
+            }
 
             int sizeToCopy = static_cast<int>(frameToRead) * decoder->channels;
-			std::copy(&buffer[0], &buffer[0] + sizeToCopy, std::back_inserter(decoder->data));
+            std::copy(&buffer[0], &buffer[0] + sizeToCopy, std::back_inserter(decoder->data));
 
-			currentCursor += static_cast<int>(frameToRead);
+            currentCursor += static_cast<int>(frameToRead);
         }
-	}
+    }
 
     // Clip the audio data to prevent distortion
     for (int i = 0; i < decoder->data.size(); i++) {
@@ -401,10 +374,10 @@ EST_RESULT EST_EncoderRender(EHANDLE handle)
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value)
+EST_RESULT EST_EncoderSetAttribute(ECHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -461,10 +434,10 @@ EST_RESULT EST_EncoderSetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attr
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value)
+EST_RESULT EST_EncoderGetAttribute(ECHANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -510,10 +483,10 @@ EST_RESULT EST_EncoderGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attr
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetData(EHANDLE handle, void *data, int *size)
+EST_RESULT EST_EncoderGetData(ECHANDLE handle, void *data, int *size)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -535,10 +508,10 @@ EST_RESULT EST_EncoderGetData(EHANDLE handle, void *data, int *size)
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderFlushData(EHANDLE handle)
+EST_RESULT EST_EncoderFlushData(ECHANDLE handle)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -549,10 +522,10 @@ EST_RESULT EST_EncoderFlushData(EHANDLE handle)
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetAvailableDataSize(EHANDLE handle, int *size)
+EST_RESULT EST_EncoderGetAvailableDataSize(ECHANDLE handle, int *size)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -562,10 +535,10 @@ EST_RESULT EST_EncoderGetAvailableDataSize(EHANDLE handle, int *size)
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetSample(EHANDLE handle, EHANDLE *outSample)
+EST_RESULT EST_EncoderGetSample(ECHANDLE handle, EHANDLE *outSample)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -582,10 +555,10 @@ EST_RESULT EST_EncoderGetSample(EHANDLE handle, EHANDLE *outSample)
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderExportFile(EHANDLE handle, enum EST_FILE_EXPORT type, char *filePath)
+EST_RESULT EST_EncoderExportFile(ECHANDLE handle, enum EST_FILE_EXPORT type, char *filePath)
 {
-    auto decoder = getDecoder(handle);
-    if (!decoder) {
+    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
+    if (!decoder || decoder->Signature != kESTEncoderSignature) {
         EST_SetError("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }

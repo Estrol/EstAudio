@@ -13,6 +13,7 @@ using namespace signalsmith::stretch;
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 
 struct EST_AudioCallback
 {
@@ -35,7 +36,7 @@ struct EST_AudioDevice
 struct EST_AudioResampler
 {
     bool isInit = false;
-    bool isPitched = false;
+    bool isPitched = true;
     bool isAtEnd = false;
 
     ma_resampler                        resampler = {};
@@ -116,6 +117,7 @@ struct EST_ResamplerDestructor
 namespace {
     constexpr int kMaxChannels = 2;
     static EHANDLE g_handleCounter = 0;
+    std::shared_ptr<std::mutex> g_Mutex;
 
     std::shared_ptr<EST_AudioDevice>                              g_device;
     std::unordered_map<EHANDLE, std::shared_ptr<EST_AudioSample>> g_samples;
@@ -335,6 +337,7 @@ EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags)
     g_device->temporaryData.resize(4095 * kMaxChannels);
     g_device->processingData.resize(4095 * kMaxChannels);
 
+    g_Mutex = std::make_shared<std::mutex>();
     return EST_OK;
 }
 
@@ -372,6 +375,7 @@ EST_RESULT EST_DeviceFree()
     //ma_context_uninit(&g_device->context);
 
     g_device.reset();
+    g_Mutex.reset();
 
     return EST_OK;
 }
@@ -431,6 +435,8 @@ EST_RESULT InternalInit(std::shared_ptr<EST_AudioSample> sample, ma_format forma
     sample->isInit = true;
     sample->channels = channels;
     sample->pitch = pitch;
+
+    std::lock_guard<std::mutex> lock(*g_Mutex.get());
 
     EHANDLE id = g_handleCounter++;
 
@@ -776,6 +782,82 @@ EST_RESULT EST_SampleGetAttribute(EHANDLE handle, enum EST_ATTRIBUTE_FLAGS attri
             EST_SetError("Invalid attribute");
             return EST_ERROR_INVALID_ARGUMENT;
     }
+
+    return EST_OK;
+}
+
+EST_RESULT EST_SampleSlideAttribute(EHANDLE handle, EST_ATTRIBUTE_FLAGS attribute, float value, float time)
+{
+    if (!g_device) {
+        EST_SetError("No context");
+        return EST_ERROR_INVALID_STATE;
+    }
+
+    auto it = GetSample(handle);
+    if (!it) {
+        EST_SetError("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (attribute == EST_ATTRIB_LOOPING) {
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (time <= 0) {
+        return EST_SampleSetAttribute(handle, attribute, value);
+    }
+
+    float time_now = 0.0f;
+    float time_end = time;
+
+    float initialValue;
+    EST_SampleGetAttribute(handle, attribute, &initialValue);
+
+    auto prev = std::chrono::high_resolution_clock::now();
+    while (time_now <= time_end) {
+        auto now = std::chrono::high_resolution_clock::now();
+        time_now += std::chrono::duration_cast<std::chrono::microseconds>(now - prev).count() / 1000.0f;
+
+        float t = time_now / time_end;
+        float v = initialValue + (value - initialValue) * t;
+        v = std::clamp(v, initialValue, value);
+
+        ::printf("Time: %.2f\n", time_now);
+
+        EST_SampleSetAttribute(handle, attribute, v);
+    }
+
+    // Nothing perfect, this is to make sure
+    EST_SampleSetAttribute(handle, attribute, value);
+
+    return EST_OK;
+}
+
+EST_RESULT EST_SampleSlideAttributeAsync(EHANDLE handle, EST_ATTRIBUTE_FLAGS attribute, float value, float time)
+{
+    if (!g_device) {
+        EST_SetError("No context");
+        return EST_ERROR_INVALID_STATE;
+    }
+
+    auto it = GetSample(handle);
+    if (!it) {
+        EST_SetError("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (attribute == EST_ATTRIB_LOOPING) {
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (time <= 0) {
+        return EST_SampleSetAttribute(handle, attribute, value);
+    }
+
+    // Very cheap version, indeed
+    std::thread([handle, attribute, value, time] {
+        EST_SampleSlideAttribute(handle, attribute, value, time);
+    }).detach();
 
     return EST_OK;
 }

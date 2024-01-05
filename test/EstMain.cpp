@@ -16,10 +16,10 @@ void data_callback(EHANDLE pHandle, void *pUserData, void *pData, int frameCount
 
 int main()
 {
-    EHANDLE hhandle;
+    ECHANDLE   hhandle;
     EST_RESULT result = EST_EncoderLoad(
-        "test1-origin.wav",
-        NULL,//data_callback,
+        "C:\\Users\\ACER\\Documents\\Games\\DPJAM\\Music\\dump_output\\Back_to_the_gatemp3_ref(0).wav",
+        NULL, // data_callback,
         EST_DECODER_STEREO,
         &hhandle);
 
@@ -29,12 +29,27 @@ int main()
 
     EHANDLE handle;
     EST_EncoderGetSample(hhandle, &handle);
+    EST_EncoderFree(hhandle);
 
     EST_SampleSetAttribute(handle, EST_ATTRIB_LOOPING, (EST_BOOL)EST_TRUE);
 
     EST_SamplePlay(handle);
 
-    (void)getchar();
+    while (true) {
+        char t = (char)getchar();
+
+        if (t == 'q') {
+            EST_SampleSlideAttributeAsync(handle, EST_ATTRIB_RATE, 1.5f, 2);
+        }
+
+        if (t == 'w') {
+            EST_SampleSlideAttributeAsync(handle, EST_ATTRIB_RATE, 1.0f, 2);
+        }
+
+        if (t == 'e') {
+            break;
+        }
+    }
 
     EST_SampleStop(handle);
     EST_SampleFree(handle);
