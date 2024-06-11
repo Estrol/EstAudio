@@ -8,9 +8,17 @@ include_directories("./include")
 file(GLOB_RECURSE HEADERS "./include/*.h" "./include/*.hpp")
 
 set(SOURCES 
-    "src/EstAudio.cpp"
-    "src/EstEncoder.cpp"
+    "src/Audio/Device.cpp"
+    "src/Audio/Sample/SampleInternal.cpp"
+    "src/Audio/Sample/SampleAttributes.cpp"
+    "src/Audio/Sample/SampleFileIO.cpp"
+    "src/Audio/Sample/SampleControl.cpp"
+    "src/Encoder/EncoderAttributes.cpp"
+    "src/Encoder/EncoderProcessor.cpp"
+    "src/Encoder/EncoderFileIO.cpp"
+    "src/Encoder/EncoderExport.cpp"
     "src/third-party/miniaudio/miniaudio-decoders.cpp"
+    "src/third-party-impl/impl.cpp"
 )
 
 if (WIN32)

@@ -79134,7 +79134,7 @@ MA_PRIVATE ma_bool32 ma_dr_wav_init__internal(ma_dr_wav* pWav, ma_dr_wav_chunk_p
         }
         if (pWav->container == ma_dr_wav_container_riff || pWav->container == ma_dr_wav_container_rifx) {
             if (ma_dr_wav_bytes_to_u32_ex(chunkSizeBytes, pWav->container) < 36) {
-                return MA_FALSE;
+                //return MA_FALSE;
             }
         }
         else if (pWav->container == ma_dr_wav_container_rf64) {

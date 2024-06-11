@@ -13,10 +13,6 @@
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static"
             },
             "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-            "toolset": {
-                "value": "host=x64,version=14.29",
-                "strategy": "external"
-            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",

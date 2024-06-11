@@ -86,17 +86,19 @@ enum EST_STATUS {
 // More format coming soon
 enum EST_FILE_EXPORT {
     EST_EXPORT_UNKNOWN,
-
     EST_EXPORT_WAV // Export sample as wav 16bit format
 };
 
-typedef unsigned int EHANDLE;  // EstAudio handle, used for playback channel, thread safety: safe
-typedef void        *ECHANDLE; // EstEncoder handle, used for encoder channel, thread safety: safe
+typedef unsigned int EST_AUDIO_HANDLE;   // EstAudio handle, used for playback channel, thread safety: safe
+typedef void        *EST_DEVICE_HANDLE;  // EstDeviceHandle, used for audio system, thread safety: safe
+typedef void        *EST_ENCODER_HANDLE; // EstEncoder handle, used for encoder channel, thread safety: safe
+typedef void        *EST_CHANNEL_HANDLE; // EstChannel handle, used for channel handle for EST_AUDIO_HANDLE, thread safety: safe
 typedef unsigned int EUINT32;
 #define INVALID_HANDLE -1
+#define INVALID_ECHANDLE (void *)0
 
-typedef void (*est_audio_callback)(EHANDLE pHandle, void *pUserData, void *pData, int frameCount);
-typedef void (*est_encoder_callback)(ECHANDLE pHandle, void *pUserData, void *pData, int frameCount);
+typedef void (*est_audio_callback)(EST_AUDIO_HANDLE pHandle, void *pUserData, void *pData, int frameCount);
+typedef void (*est_encoder_callback)(EST_ENCODER_HANDLE pHandle, void *pUserData, void *pData, int frameCount);
 
 typedef struct
 {
@@ -105,5 +107,12 @@ typedef struct
     int                   deviceIndex;
     enum EST_DEVICE_FLAGS flags;
 } est_device_info;
+
+typedef struct
+{
+    int sampleRate;
+    int channels;
+    int pcmSize;
+} est_encoder_info;
 
 #endif
