@@ -4,18 +4,18 @@ namespace {
     static std::string gErrorString;
 }
 
-EST_RESULT InternalInit(EST_Encoder *sample, ma_format format, int channels, int sampleRate, EST_ENCODER_HANDLE *handle)
+EST_Encoder *InternalInit(EST_Encoder *sample, ma_format format, int channels, int sampleRate)
 {
     ma_panner_config pannerConfig = ma_panner_config_init(format, channels);
     if (ma_panner_init(&pannerConfig, &sample->panner) != MA_SUCCESS) {
-        EST_EncoderSetError("Failed to initialize panner");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("Failed to initialize panner");
+        return nullptr;
     }
 
     ma_gainer_config gainerConfig = ma_gainer_config_init(channels, 0);
     if (ma_gainer_init(&gainerConfig, nullptr, &sample->gainer) != MA_SUCCESS) {
-        EST_EncoderSetError("Failed to initialize gainer");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("Failed to initialize gainer");
+        return nullptr;
     }
 
     ma_resampler_config resamplerConfig = ma_resampler_config_init(
@@ -30,8 +30,8 @@ EST_RESULT InternalInit(EST_Encoder *sample, ma_format format, int channels, int
     sample->sampleRate = static_cast<float>(sampleRate);
 
     if (ma_resampler_init(&resamplerConfig, nullptr, &sample->calculator) != MA_SUCCESS) {
-        EST_EncoderSetError("Failed to initialize gainer");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("Failed to initialize gainer");
+        return nullptr;
     }
 
     ma_channel_converter_config chConfig = ma_channel_converter_config_init(
@@ -43,26 +43,25 @@ EST_RESULT InternalInit(EST_Encoder *sample, ma_format format, int channels, int
         ma_channel_mix_mode_default); // The mixing algorithm to use when combining channels.
 
     if (ma_channel_converter_init(&chConfig, nullptr, &sample->converter)) {
-        EST_EncoderSetError("Failed to initialize channel converter");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("Failed to initialize channel converter");
+        return nullptr;
     }
 
     sample->data.reserve(4095 * channels);
-    *handle = reinterpret_cast<EST_ENCODER_HANDLE>(sample);
 
-    return EST_OK;
+    return sample;
 }
 
-EST_RESULT EST_EncoderLoad(const char *path, est_encoder_callback callback, enum EST_DECODER_FLAGS flags, EST_ENCODER_HANDLE *decoder)
+EST_Encoder *EST_EncoderLoad(const char *path, est_encoder_callback callback, enum EST_DECODER_FLAGS flags)
 {
     if (!path) {
-        EST_EncoderSetError("Path is not defined");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("Path is not defined");
+        return nullptr;
     }
 
     EST_Encoder *instance = new EST_Encoder;
     if (!instance) {
-        return EST_ERROR_OUT_OF_MEMORY;
+        return nullptr;
     }
 
     ma_decoding_backend_vtable *pCustomBackendVTables[] = {
@@ -78,7 +77,8 @@ EST_RESULT EST_EncoderLoad(const char *path, est_encoder_callback callback, enum
 
     auto result = ma_decoder_init_file(path, &config, &instance->decoder);
     if (result != MA_SUCCESS) {
-        return EST_ERROR_INVALID_ARGUMENT;
+        delete instance;
+        return nullptr;
     }
 
     if (flags & EST_DECODER_MONO) {
@@ -90,20 +90,19 @@ EST_RESULT EST_EncoderLoad(const char *path, est_encoder_callback callback, enum
     return InternalInit(instance,
                         instance->decoder.outputFormat,
                         instance->decoder.outputChannels,
-                        instance->decoder.outputSampleRate,
-                        decoder);
+                        instance->decoder.outputSampleRate);
 }
 
-EST_RESULT EST_EncoderLoadMemory(const void *data, int size, est_encoder_callback callback, enum EST_DECODER_FLAGS flags, EST_ENCODER_HANDLE *decoder)
+EST_Encoder *EST_EncoderLoadMemory(const void *data, int size, est_encoder_callback callback, enum EST_DECODER_FLAGS flags)
 {
     if (!data || size == 0) {
-        EST_EncoderSetError("Path is not defined");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("Path is not defined");
+        return nullptr;
     }
 
     EST_Encoder *instance = new EST_Encoder;
     if (!instance) {
-        return EST_ERROR_OUT_OF_MEMORY;
+        return nullptr;
     }
 
     ma_decoding_backend_vtable *pCustomBackendVTables[] = {
@@ -119,7 +118,9 @@ EST_RESULT EST_EncoderLoadMemory(const void *data, int size, est_encoder_callbac
 
     auto result = ma_decoder_init_memory(data, size, &config, &instance->decoder);
     if (result != MA_SUCCESS) {
-        return EST_ERROR_INVALID_ARGUMENT;
+
+        delete instance;
+        return nullptr;
     }
 
     if (flags & EST_DECODER_MONO) {
@@ -131,33 +132,27 @@ EST_RESULT EST_EncoderLoadMemory(const void *data, int size, est_encoder_callbac
     return InternalInit(instance,
                         instance->decoder.outputFormat,
                         instance->decoder.outputChannels,
-                        instance->decoder.outputSampleRate,
-                        decoder);
+                        instance->decoder.outputSampleRate);
 }
 
-EST_RESULT EST_EncoderFree(EST_ENCODER_HANDLE handle)
+EST_RESULT EST_EncoderFree(EST_Encoder *handle)
 {
-    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
-    if (!decoder || decoder->Signature != kESTEncoderSignature) {
-        EST_EncoderSetError("Invalid handle");
+    if (!handle) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    ma_decoder_uninit(&decoder->decoder);
-    ma_gainer_uninit(&decoder->gainer, nullptr);
-    ma_channel_converter_uninit(&decoder->converter, nullptr);
+    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+        EST_ErrorSetMessage("Invalid pointer magic");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
 
-    delete decoder;
+    ma_decoder_uninit(&handle->decoder);
+    ma_gainer_uninit(&handle->gainer, nullptr);
+    ma_channel_converter_uninit(&handle->converter, nullptr);
+
+    memset((void *)handle->signature, 0, 5);
+
+    delete handle;
     return EST_OK;
-}
-
-EST_RESULT EST_EncoderSetError(const char *error)
-{
-    gErrorString = error;
-    return EST_OK;
-}
-
-const char *EST_EncoderGetError()
-{
-    return gErrorString.c_str();
 }

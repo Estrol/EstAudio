@@ -1,16 +1,27 @@
-#include "../Internal.h"
+#include "ChannelInternal.h"
 #include "../../Utils/IO.h"
 
-EST_Sample *EST_SampleLoad(const char *filename)
+struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
 {
-    if (!filename) {
-        EST_ErrorSetMessage("EST_SampleLoad: filename is nullptr");
+    if (!device) {
+        EST_ErrorSetMessage("EST_ChannelLoad: device is nullptr");
         return nullptr;
     }
 
     if (strnlen_s(filename, 256) == 0) {
-        EST_ErrorSetMessage("EST_SampleLoad: filename is empty");
+        EST_ErrorSetMessage("EST_ChannelLoad: filename is empty");
         return nullptr;
+    }
+
+    std::string hash = HashFile(filename);
+    auto        it = device->memory.find(hash);
+    if (it != device->memory.end()) {
+        return InternalInit(
+            device,
+            &it->second.data[0],
+            it->second.channels,
+            it->second.pcmSize,
+            it->second.sampleRate);
     }
 
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 2, 44100);
@@ -26,9 +37,8 @@ EST_Sample *EST_SampleLoad(const char *filename)
 
     ma_decoder decoder;
     ma_result  result = ma_decoder_init_file(filename, &config, &decoder);
-
     if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoad: failed to load audio file");
+        EST_ErrorSetMessage("EST_ChannelLoad: failed to load audio file");
         return nullptr;
     }
 
@@ -38,13 +48,13 @@ EST_Sample *EST_SampleLoad(const char *filename)
 
     result = ma_decoder_get_data_format(&decoder, nullptr, &channels, &sampleRate, nullptr, 0);
     if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoad: failed to get data format");
+        EST_ErrorSetMessage("EST_ChannelLoad: failed to get data format");
         return nullptr;
     }
 
     result = ma_decoder_get_available_frames(&decoder, &pcmSize);
     if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoad: failed to get available frames");
+        EST_ErrorSetMessage("EST_ChannelLoad: failed to get available frames");
         return nullptr;
     }
 
@@ -54,7 +64,7 @@ EST_Sample *EST_SampleLoad(const char *filename)
         ma_uint64 framesRead = pcmToRead;
         result = ma_decoder_read_pcm_frames(&decoder, &buffer[0], framesRead, &framesRead);
         if (result != MA_SUCCESS) {
-            EST_ErrorSetMessage("EST_SampleLoad: failed to read pcm frames");
+            EST_ErrorSetMessage("EST_ChannelLoad: failed to read pcm frames");
             return nullptr;
         }
 
@@ -63,25 +73,43 @@ EST_Sample *EST_SampleLoad(const char *filename)
 
     ma_decoder_uninit(&decoder);
 
-    EST_Sample *sample = new EST_Sample;
-    sample->channels = channels;
-    sample->sampleRate = sampleRate;
-    sample->pcmSize = (int)pcmSize;
-    sample->data = buffer;
+    EST_MemoryItem item;
+    item.data = buffer;
+    item.pcmSize = (int)pcmSize;
+    item.channels = channels;
+    item.sampleRate = sampleRate;
 
-    return sample;
+    device->memory[hash] = std::move(item);
+
+    return InternalInit(device, &device->memory[hash].data[0], channels, (int)pcmSize, sampleRate);
 }
 
-EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
+struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *data, size_t size)
 {
+    if (!device) {
+        EST_ErrorSetMessage("EST_ChannelLoadFromMemory: device is nullptr");
+        return nullptr;
+    }
+
     if (!data) {
-        EST_ErrorSetMessage("EST_SampleLoadFromMemory: data is nullptr");
+        EST_ErrorSetMessage("EST_ChannelLoadFromMemory: data is nullptr");
         return nullptr;
     }
 
     if (size == 0) {
-        EST_ErrorSetMessage("EST_SampleLoadFromMemory: size is 0");
+        EST_ErrorSetMessage("EST_ChannelLoadFromMemory: size is 0");
         return nullptr;
+    }
+
+    std::string hash = HashBuffer(data, size);
+    auto        it = device->memory.find(hash);
+    if (it != device->memory.end()) {
+        return InternalInit(
+            device,
+            &it->second.data[0],
+            it->second.channels,
+            it->second.pcmSize,
+            it->second.sampleRate);
     }
 
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 2, 44100);
@@ -97,9 +125,8 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
 
     ma_decoder decoder;
     ma_result  result = ma_decoder_init_memory(data, size, &config, &decoder);
-
     if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to load audio file");
+        EST_ErrorSetMessage("EST_ChannelLoadFromMemory: failed to load audio file");
         return nullptr;
     }
 
@@ -109,13 +136,13 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
 
     result = ma_decoder_get_data_format(&decoder, nullptr, &channels, &sampleRate, nullptr, 0);
     if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to get data format");
+        EST_ErrorSetMessage("EST_ChannelLoadFromMemory: failed to get data format");
         return nullptr;
     }
 
     result = ma_decoder_get_available_frames(&decoder, &pcmSize);
     if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to get available frames");
+        EST_ErrorSetMessage("EST_ChannelLoadFromMemory: failed to get available frames");
         return nullptr;
     }
 
@@ -125,7 +152,7 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
         ma_uint64 framesRead = pcmToRead;
         result = ma_decoder_read_pcm_frames(&decoder, &buffer[0], framesRead, &framesRead);
         if (result != MA_SUCCESS) {
-            EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to read pcm frames");
+            EST_ErrorSetMessage("EST_ChannelLoadFromMemory: failed to read pcm frames");
             return nullptr;
         }
 
@@ -134,28 +161,13 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
 
     ma_decoder_uninit(&decoder);
 
-    EST_Sample *sample = new EST_Sample;
-    sample->channels = channels;
-    sample->sampleRate = sampleRate;
-    sample->pcmSize = (int)pcmSize;
-    sample->data = buffer;
+    EST_MemoryItem item;
+    item.data = buffer;
+    item.pcmSize = (int)pcmSize;
+    item.channels = channels;
+    item.sampleRate = sampleRate;
 
-    return sample;
-}
+    device->memory[hash] = std::move(item);
 
-EST_RESULT EST_SampleFree(EST_Sample *sample)
-{
-    if (!sample) {
-        EST_ErrorSetMessage("EST_SampleFree: sample is nullptr");
-        return EST_ERROR;
-    }
-
-    if (memcmp(&sample->signature, EST_SAMPLE_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("EST_SampleFree: invalid pointer magic");
-        return EST_ERROR;
-    }
-
-    memset((void *)sample->signature, 0, 5);
-    delete sample;
-    return EST_OK;
+    return InternalInit(device, &device->memory[hash].data[0], channels, (int)pcmSize, sampleRate);
 }

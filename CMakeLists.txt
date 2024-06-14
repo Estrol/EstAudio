@@ -9,16 +9,21 @@ file(GLOB_RECURSE HEADERS "./include/*.h" "./include/*.hpp")
 
 set(SOURCES 
     "src/Audio/Device.cpp"
-    "src/Audio/Sample/SampleInternal.cpp"
-    "src/Audio/Sample/SampleAttributes.cpp"
+    "src/Audio/Error.cpp"
     "src/Audio/Sample/SampleFileIO.cpp"
-    "src/Audio/Sample/SampleControl.cpp"
+    "src/Audio/Channel/ChannelControl.cpp"
+    "src/Audio/Channel/ChannelConverter.cpp"
+    "src/Audio/Channel/ChannelFileIO.cpp"
+    "src/Audio/Channel/ChannelInternal.cpp"
     "src/Encoder/EncoderAttributes.cpp"
     "src/Encoder/EncoderProcessor.cpp"
     "src/Encoder/EncoderFileIO.cpp"
     "src/Encoder/EncoderExport.cpp"
     "src/third-party/miniaudio/miniaudio-decoders.cpp"
     "src/third-party-impl/impl.cpp"
+
+    "src/Utils/IO.cpp"
+    "src/Utils/MD5.cpp"
 )
 
 if (WIN32)

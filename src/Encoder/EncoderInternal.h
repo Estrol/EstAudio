@@ -18,10 +18,12 @@
 using namespace signalsmith::stretch;
 constexpr int kESTEncoderSignature = 255 * 0xff;
 
+#define EST_ENCODER_MAGIC "ESTENC"
+
 struct EST_Encoder
 {
-    const int Signature = kESTEncoderSignature;
-    void     *userData = NULL;
+    const char signature[8] = EST_ENCODER_MAGIC;
+    void      *userData = NULL;
 
     est_encoder_callback callback = NULL;
     std::vector<float>   data;

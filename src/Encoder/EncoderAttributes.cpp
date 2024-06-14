@@ -1,58 +1,62 @@
 #include "EncoderInternal.h"
 
-EST_RESULT EST_EncoderSetAttribute(EST_ENCODER_HANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float value)
+EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS attribute, float value)
 {
-    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
-    if (!decoder || decoder->Signature != kESTEncoderSignature) {
-        EST_EncoderSetError("Invalid handle");
+    if (!handle) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+        EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
     switch (attribute) {
         case EST_ATTRIB_PAN:
         {
-            ma_panner_set_pan(&decoder->panner, value);
+            ma_panner_set_pan(&handle->panner, value);
             break;
         }
 
         case EST_ATTRIB_VOLUME:
         {
-            ma_gainer_set_master_volume(&decoder->gainer, value);
+            ma_gainer_set_master_volume(&handle->gainer, value);
             break;
         }
 
         case EST_ATTRIB_ENCODER_TEMPO:
         {
-            decoder->rate = value;
+            handle->rate = value;
 
-            ma_uint32 originSample = decoder->decoder.outputSampleRate;
+            ma_uint32 originSample = handle->decoder.outputSampleRate;
             ma_uint32 target = (ma_uint64)(originSample * value);
 
-            ma_resampler_set_rate(&decoder->calculator, target, originSample);
+            ma_resampler_set_rate(&handle->calculator, target, originSample);
             break;
         }
 
         case EST_ATTRIB_ENCODER_PITCH:
         {
-            decoder->pitch = value;
-            decoder->processor->setTransposeFactor(value);
+            handle->pitch = value;
+            handle->processor->setTransposeFactor(value);
             break;
         }
 
         case EST_ATTRIB_ENCODER_SAMPLERATE:
         {
-            decoder->sampleRate = value;
+            handle->sampleRate = value;
 
-            ma_uint32 originSample = decoder->decoder.outputSampleRate;
+            ma_uint32 originSample = handle->decoder.outputSampleRate;
             ma_uint32 target = (ma_uint64)(value);
 
-            ma_data_converter_set_rate(&decoder->decoder.converter, target, originSample);
+            ma_data_converter_set_rate(&handle->decoder.converter, target, originSample);
             break;
         }
 
         default:
         {
-            EST_EncoderSetError("Attrib is not supported or not found!");
+            EST_ErrorSetMessage("Attrib is not supported or not found!");
             return EST_ERROR_INVALID_ARGUMENT;
         }
     }
@@ -60,48 +64,52 @@ EST_RESULT EST_EncoderSetAttribute(EST_ENCODER_HANDLE handle, enum EST_ATTRIBUTE
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetAttribute(EST_ENCODER_HANDLE handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value)
+EST_RESULT EST_EncoderGetAttribute(EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value)
 {
-    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
-    if (!decoder || decoder->Signature != kESTEncoderSignature) {
-        EST_EncoderSetError("Invalid handle");
+    if (!handle) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+        EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
     switch (attribute) {
         case EST_ATTRIB_PAN:
         {
-            *value = ma_panner_get_pan(&decoder->panner);
+            *value = ma_panner_get_pan(&handle->panner);
             break;
         }
 
         case EST_ATTRIB_VOLUME:
         {
-            ma_gainer_get_master_volume(&decoder->gainer, value);
+            ma_gainer_get_master_volume(&handle->gainer, value);
             break;
         }
 
         case EST_ATTRIB_ENCODER_TEMPO:
         {
-            *value = decoder->rate;
+            *value = handle->rate;
             break;
         }
 
         case EST_ATTRIB_ENCODER_PITCH:
         {
-            *value = decoder->pitch;
+            *value = handle->pitch;
             break;
         }
 
         case EST_ATTRIB_ENCODER_SAMPLERATE:
         {
-            *value = decoder->sampleRate;
+            *value = handle->sampleRate;
             break;
         }
 
         default:
         {
-            EST_EncoderSetError("Attrib is not supported or not found!");
+            EST_ErrorSetMessage("Attrib is not supported or not found!");
             return EST_ERROR_INVALID_ARGUMENT;
         }
     }
@@ -109,17 +117,21 @@ EST_RESULT EST_EncoderGetAttribute(EST_ENCODER_HANDLE handle, enum EST_ATTRIBUTE
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetInfo(EST_ENCODER_HANDLE handle, est_encoder_info *info)
+EST_RESULT EST_EncoderGetInfo(EST_Encoder *handle, est_encoder_info *info)
 {
-    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
-    if (!decoder || decoder->Signature != kESTEncoderSignature) {
-        EST_EncoderSetError("Invalid handle");
+    if (!handle) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    info->channels = decoder->channels;
-    info->pcmSize = decoder->numOfPcmProcessed;
-    info->sampleRate = static_cast<int>(decoder->sampleRate);
+    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+        EST_ErrorSetMessage("Invalid pointer magic");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    info->channels = handle->channels;
+    info->pcmSize = handle->numOfPcmProcessed;
+    info->sampleRate = static_cast<int>(handle->sampleRate);
 
     return EST_OK;
 }

@@ -18,13 +18,13 @@ using namespace signalsmith::stretch;
 
 #define FLAG_EXIST(flags, flag) ((flags & flag) == flag)
 
-struct EST_AudioCallback
+struct EST_ChannelDataCallback
 {
-    est_audio_callback callback;
-    void              *userdata;
+    est_channel_data_callback callback;
+    void                     *userdata;
 };
 
-struct EST_AudioResampler
+struct EST_ChannelResampler
 {
     bool isInit = false;
     bool isPitched = true;
@@ -43,57 +43,22 @@ struct EST_Attribute
     bool  looping = false;
 };
 
-struct EST_RawAudio
-{
-    ma_audio_buffer decoder = {};
+#define EST_SAMPLE_MAGIC "ESTS"
 
-    std::vector<float> PCMData;
-    int                PCMSize = 0;
-};
-
-struct EST_AudioSample
+struct EST_Sample
 {
+    const char signature[5] = EST_SAMPLE_MAGIC;
+
     int channels = 0;
+    int sampleRate = 0;
+    int pcmSize = 0;
 
-    bool isInit = false;
-    bool isPlaying = false;
-    bool isAtEnd = false;
-    bool isRemoved = false;
-
-    EST_Attribute                 attributes = {};
-    std::shared_ptr<EST_RawAudio> rawAudio;
-
-    ma_decoder           decoder = {};
-    ma_panner            panner = {};
-    ma_gainer            gainer = {};
-    ma_channel_converter converter = {};
-
-    std::shared_ptr<EST_AudioResampler> pitch = {};
-    std::vector<EST_AudioCallback>      callbacks;
-};
-
-struct EST_AudioDestructor
-{
-    inline void operator()(EST_AudioSample *sample) const
-    {
-        if (!sample->isInit) {
-            return;
-        }
-
-        if (sample->rawAudio) {
-            ma_audio_buffer_uninit(&sample->rawAudio->decoder);
-        } else {
-            ma_decoder_uninit(&sample->decoder);
-        }
-
-        ma_channel_converter_uninit(&sample->converter, nullptr);
-        ma_gainer_uninit(&sample->gainer, nullptr);
-    }
+    std::vector<float> data = {};
 };
 
 struct EST_ResamplerDestructor
 {
-    inline void operator()(EST_AudioResampler *sample) const
+    inline void operator()(EST_ChannelResampler *sample) const
     {
         if (!sample->isInit) {
             return;
@@ -104,22 +69,55 @@ struct EST_ResamplerDestructor
     }
 };
 
-struct EST_AudioDevice
+#define EST_CHANNEL_MAGIC "ESTC"
+
+struct EST_Channel
+{
+    const char magic[5] = EST_CHANNEL_MAGIC;
+
+    int channels = 0;
+
+    ma_audio_buffer      buffer = {};
+    ma_panner            panner = {};
+    ma_gainer            gainer = {};
+    ma_channel_converter converter = {};
+    EST_ChannelResampler resampler = {};
+
+    EST_Attribute   attributes = {};
+    enum EST_STATUS status = EST_STATUS_IDLE;
+    bool            isInit = false;
+    bool            isPlaying = false;
+    bool            isAtEnd = false;
+    bool            isRemoved = false;
+
+    std::shared_ptr<EST_ChannelResampler> pitch = {};
+    std::vector<EST_ChannelDataCallback>  callbacks;
+};
+
+struct EST_MemoryItem
+{
+    std::vector<float> data;
+    int                pcmSize = 0;
+    int                channels = 0;
+    int                sampleRate = 0;
+};
+
+struct EST_Device
 {
     int channels = 0;
 
     ma_context context = {};
     ma_device  device = {};
 
-    std::vector<float>             temporaryData;
-    std::vector<float>             processingData;
-    std::vector<EST_AudioCallback> callbacks;
+    std::vector<float>                   temporaryData;
+    std::vector<float>                   processingData;
+    std::vector<EST_ChannelDataCallback> callbacks;
 
-    std::unordered_map<EST_AUDIO_HANDLE, std::shared_ptr<EST_AudioSample>> samples;
-    std::string                                                            error;
-    std::shared_ptr<std::mutex>                                            mutex;
+    std::vector<std::shared_ptr<EST_Channel>> channel_arrays;
+    std::string                               error;
+    std::shared_ptr<std::mutex>               mutex;
 
-    EST_AUDIO_HANDLE HandleCounter = 0;
+    std::unordered_map<std::string, EST_MemoryItem> memory;
 };
 
 #endif

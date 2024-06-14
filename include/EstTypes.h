@@ -17,6 +17,10 @@
 #endif
 // clang-format on
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 enum EST_BOOL {
     EST_FALSE = 0,
     EST_TRUE = 1
@@ -35,7 +39,9 @@ enum EST_RESULT {
     EST_ERROR_TIMEDOUT = 8,
     EST_ERROR_ENCODER_EMPTY = 9,
     EST_ERROR_ENCODER_UNSUPPORTED = 10,
-    EST_ERROR_ENCODER_INVALID_WRITE = 11
+    EST_ERROR_ENCODER_INVALID_WRITE = 11,
+    EST_ERROR_ENCODER_INVALID_READ = 12,
+    EST_ERROR_ENCODER_INVALID_OPERATION = 13,
 };
 
 enum EST_DEVICE_FLAGS {
@@ -79,6 +85,7 @@ enum EST_STATUS {
 
     EST_STATUS_IDLE,
     EST_STATUS_PLAYING,
+    EST_STATUS_PAUSED,
     EST_STATUS_AT_END
 };
 
@@ -97,8 +104,13 @@ typedef unsigned int EUINT32;
 #define INVALID_HANDLE -1
 #define INVALID_ECHANDLE (void *)0
 
-typedef void (*est_audio_callback)(EST_AUDIO_HANDLE pHandle, void *pUserData, void *pData, int frameCount);
-typedef void (*est_encoder_callback)(EST_ENCODER_HANDLE pHandle, void *pUserData, void *pData, int frameCount);
+struct EST_Channel;
+struct EST_Device;
+struct EST_Sample;
+struct EST_Encoder;
+
+typedef void (*est_channel_data_callback)(EST_Channel *pHandle, void *pUserData, void *pData, int frameCount);
+typedef void (*est_encoder_callback)(EST_Encoder *pHandle, void *pUserData, void *pData, int frameCount);
 
 typedef struct
 {
@@ -114,5 +126,26 @@ typedef struct
     int channels;
     int pcmSize;
 } est_encoder_info;
+
+enum EST_ATTRIB_VAL_TYPE {
+    EST_ATTRIB_VAL_FLOAT,
+    EST_ATTRIB_VAL_INT,
+    EST_ATTRIB_VAL_BOOL
+};
+
+typedef struct
+{
+    enum EST_ATTRIBUTE_FLAGS attribute;
+    enum EST_ATTRIB_VAL_TYPE type;
+    union {
+        float    fValue;
+        int      iValue;
+        EST_BOOL bValue;
+    };
+} est_attribute_value;
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif

@@ -1,15 +1,19 @@
 #include "EncoderInternal.h"
 
-EST_RESULT EST_EncoderExportFile(EST_ENCODER_HANDLE handle, enum EST_FILE_EXPORT type, char *filePath)
+EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type, char *filePath)
 {
-    auto decoder = reinterpret_cast<EST_Encoder *>(handle);
-    if (!decoder || decoder->Signature != kESTEncoderSignature) {
-        EST_EncoderSetError("Invalid handle");
+    if (!handle) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (!decoder->data.size()) {
-        EST_EncoderSetError("Decoder not renderer");
+    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+        EST_ErrorSetMessage("Invalid pointer magic");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (!handle->data.size()) {
+        EST_ErrorSetMessage("handle not renderer");
         return EST_ERROR_ENCODER_EMPTY;
     }
 
@@ -17,8 +21,8 @@ EST_RESULT EST_EncoderExportFile(EST_ENCODER_HANDLE handle, enum EST_FILE_EXPORT
         ma_encoder_config config = ma_encoder_config_init(
             ma_encoding_format_wav,
             ma_format_s16,
-            decoder->channels,
-            decoder->decoder.outputSampleRate);
+            handle->channels,
+            handle->decoder.outputSampleRate);
 
         ma_encoder encoder;
         ma_result  result = ma_encoder_init_file(filePath, &config, &encoder);
@@ -26,12 +30,12 @@ EST_RESULT EST_EncoderExportFile(EST_ENCODER_HANDLE handle, enum EST_FILE_EXPORT
             return EST_ERROR_INVALID_ARGUMENT;
         }
 
-        int dataSize = decoder->numOfPcmProcessed * decoder->channels;
+        int dataSize = handle->numOfPcmProcessed * handle->channels;
 
         // Convert data to signed int16
         std::vector<int16_t> data(dataSize);
         for (int i = 0; i < dataSize; i++) {
-            float f = decoder->data[i];
+            float f = handle->data[i];
             f = std::clamp(f * 32768.0f, -32768.0f, 32767.0f);
 
             int16_t val = static_cast<int16_t>(f);
@@ -39,14 +43,14 @@ EST_RESULT EST_EncoderExportFile(EST_ENCODER_HANDLE handle, enum EST_FILE_EXPORT
         }
 
         ma_uint64 written = 0;
-        result = ma_encoder_write_pcm_frames(&encoder, &data[0], decoder->numOfPcmProcessed, &written);
+        result = ma_encoder_write_pcm_frames(&encoder, &data[0], handle->numOfPcmProcessed, &written);
         if (result != MA_SUCCESS) {
             return EST_ERROR_ENCODER_INVALID_WRITE;
         }
 
         ma_encoder_uninit(&encoder);
     } else {
-        EST_EncoderSetError("Invalid export type or unsupported");
+        EST_ErrorSetMessage("Invalid export type or unsupported");
         return EST_ERROR_ENCODER_UNSUPPORTED;
     }
 

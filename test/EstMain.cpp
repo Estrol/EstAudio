@@ -3,41 +3,43 @@
 #include <stdio.h>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 int main()
 {
-    EST_DEVICE_HANDLE device;
-    if (EST_DeviceInit(44100, (EST_DEVICE_FLAGS)(EST_DEVICE_STEREO | EST_DEVICE_FORMAT_F32), &device) != EST_OK) {
-        printf("Failed to initialize audio device %s\n", EST_GetError());
+    EST_Device *dev = EST_DeviceInit(44100, EST_DEVICE_FLAGS::EST_DEVICE_STEREO);
+    if (!dev) {
+        printf("Failed to init device %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
-    EST_ENCODER_HANDLE encoder;
-    auto               result = EST_EncoderLoad("F:\\test.wav", nullptr, (EST_DECODER_FLAGS)0, &encoder);
-
-    if (result != EST_OK) {
-        printf("Failed to load sample %s\n", EST_GetError());
+    EST_Encoder *encoder = EST_EncoderLoad("F:\\test.wav", nullptr, EST_DECODER_FLAGS::EST_DECODER_UNKNOWN);
+    if (!encoder) {
+        printf("Failed to load encoder %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
     EST_EncoderSetAttribute(encoder, EST_ATTRIB_ENCODER_TEMPO, 1.5f);
 
-    EST_AUDIO_HANDLE sample;
-    EST_EncoderGetSample(encoder, device, &sample);
+    EST_EncoderRender(encoder);
 
-    EST_EncoderFree(encoder);
+    EST_Channel *channel = EST_EncoderGetChannel(dev, encoder);
+    if (!channel) {
+        printf("Failed to get channel %s\n", EST_ErrorGetMessage());
+        return 1;
+    }
 
-    EST_SamplePlay(device, sample);
-    EST_SampleSetAttribute(device, sample, EST_ATTRIB_RATE, 1.5f);
+    EST_ChannelPlay(dev, channel, EST_FALSE);
 
-    EST_STATUS status;
-    while (EST_SampleGetStatus(device, sample, &status) == EST_OK && status != EST_STATUS_AT_END) {
+    while (EST_ChannelIsPlaying(dev, channel)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    EST_SampleStop(device, sample);
-    EST_SampleFree(device, sample);
-    EST_DeviceFree(device);
+    EST_ChannelStop(dev, channel);
+    EST_ChannelFree(dev, channel);
+
+    EST_EncoderFree(encoder);
+    EST_DeviceFree(dev);
 
     return 0;
 }

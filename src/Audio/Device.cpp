@@ -1,12 +1,10 @@
 #include "Internal.h"
 
 namespace {
-    constexpr int           kMaxChannels = 2;
-    static EST_AUDIO_HANDLE g_handleCounter = 0;
-    std::string             g_error;
+    constexpr int kMaxChannels = 2;
 } // namespace
 
-static ma_uint32 data_mix_pcm(EST_AUDIO_HANDLE handle, EST_AudioDevice *device, std::shared_ptr<EST_AudioSample> sample, float *pOutput, ma_uint32 frameCount)
+static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *pOutput, ma_uint32 frameCount)
 {
     int       channels = device->channels;
     ma_result result = MA_SUCCESS;
@@ -33,34 +31,27 @@ static ma_uint32 data_mix_pcm(EST_AUDIO_HANDLE handle, EST_AudioDevice *device, 
             expectedToReadThisIteration = totalFramesRemaining;
         }
 
-        if (sample->attributes.rate != 1.0f) {
+        if (channel->attributes.rate != 1.0f) {
             ma_resampler_get_required_input_frame_count(
-                &sample->pitch->resampler,
+                &channel->pitch->resampler,
                 framesToReadThisIteration,
                 &framesToReadThisIteration);
         }
 
-        if (sample->rawAudio) {
-            framesReadThisIteration = ma_audio_buffer_read_pcm_frames(&sample->rawAudio->decoder, &temp[0], framesToReadThisIteration, MA_FALSE);
-            if (framesReadThisIteration == 0) {
-                break;
-            }
-        } else {
-            result = ma_decoder_read_pcm_frames(&sample->decoder, &temp[0], framesToReadThisIteration, &framesReadThisIteration);
-            if (result != MA_SUCCESS || framesReadThisIteration == 0) {
-                break;
-            }
+        framesReadThisIteration = ma_audio_buffer_read_pcm_frames(&channel->buffer, &temp[0], framesToReadThisIteration, MA_FALSE);
+        if (framesReadThisIteration == 0) {
+            break;
         }
 
-        if (sample->channels != device->channels) {
-            ma_channel_converter_process_pcm_frames(&sample->converter, &temp2[0], &temp[0], framesReadThisIteration);
+        if (channel->channels != device->channels) {
+            ma_channel_converter_process_pcm_frames(&channel->converter, &temp2[0], &temp[0], framesReadThisIteration);
 
             std::fill(temp.begin(), temp.begin() + byteSize, 0.0f);
             std::copy(&temp2[0], &temp2[0] + framesReadThisIteration * device->channels, &temp[0]);
         }
 
-        if (sample->attributes.rate != 1.0f) {
-            result = ma_resampler_process_pcm_frames(&sample->pitch->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
+        if (channel->attributes.rate != 1.0f) {
+            result = ma_resampler_process_pcm_frames(&channel->pitch->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
 
             if (result != MA_SUCCESS) {
                 break;
@@ -68,8 +59,8 @@ static ma_uint32 data_mix_pcm(EST_AUDIO_HANDLE handle, EST_AudioDevice *device, 
 
             framesReadThisIteration = expectedToReadThisIteration;
 
-            if (!sample->pitch->isPitched) {
-                sample->pitch->processor->process(
+            if (!channel->pitch->isPitched) {
+                channel->pitch->processor->process(
                     temp2,
                     static_cast<int>(framesReadThisIteration),
                     temp,
@@ -79,12 +70,12 @@ static ma_uint32 data_mix_pcm(EST_AUDIO_HANDLE handle, EST_AudioDevice *device, 
             }
         }
 
-        result = ma_panner_process_pcm_frames(&sample->panner, &temp2[0], &temp[0], framesReadThisIteration);
+        result = ma_panner_process_pcm_frames(&channel->panner, &temp2[0], &temp[0], framesReadThisIteration);
         if (result != MA_SUCCESS) {
             break;
         }
 
-        result = ma_gainer_process_pcm_frames(&sample->gainer, &temp[0], &temp2[0], framesReadThisIteration);
+        result = ma_gainer_process_pcm_frames(&channel->gainer, &temp[0], &temp2[0], framesReadThisIteration);
         if (result != MA_SUCCESS) {
             break;
         }
@@ -101,9 +92,9 @@ static ma_uint32 data_mix_pcm(EST_AUDIO_HANDLE handle, EST_AudioDevice *device, 
         }
     }
 
-    if (sample->callbacks.size()) {
+    if (channel->callbacks.size()) {
         for (auto &it : device->callbacks) {
-            it.callback(handle, it.userdata, pOutput, totalFramesRead);
+            it.callback(channel, it.userdata, pOutput, totalFramesRead);
         }
     }
 
@@ -127,38 +118,43 @@ static void data_callback(ma_device *pObject, void *pOutput, const void *pInput,
         return;
     }
 
-    EST_AudioDevice *device = reinterpret_cast<EST_AudioDevice *>(pObject->pUserData);
+    EST_Device *device = reinterpret_cast<EST_Device *>(pObject->pUserData);
 
     float *pOutputFloat = reinterpret_cast<float *>(pOutput);
 
-    for (auto &[handle, sample] : device->samples) {
-        if (sample->isPlaying) {
-            ma_uint32 pcmReaded = data_mix_pcm(handle, device, sample, pOutputFloat, frameCount);
+    for (auto channel : device->channel_arrays) {
+        if (channel->isPlaying) {
+            ma_uint32 pcmReaded = data_mix_pcm(device, channel.get(), pOutputFloat, frameCount);
 
             if (pcmReaded < frameCount) {
-                if (sample->attributes.looping) {
-                    if (sample->rawAudio) {
-                        ma_audio_buffer_seek_to_pcm_frame(&sample->rawAudio->decoder, 0);
-                    } else {
-                        ma_decoder_seek_to_pcm_frame(&sample->decoder, 0);
-                    }
+                if (channel->attributes.looping) {
+                    ma_audio_buffer_seek_to_pcm_frame(&channel->buffer, 0);
                 } else {
-                    sample->isAtEnd = true;
-                    sample->isPlaying = false;
+                    channel->isAtEnd = true;
+                    channel->isPlaying = false;
                 }
             }
         }
     }
 
-    erase_if_map(
-        device->samples,
-        [&](std::pair<EST_AUDIO_HANDLE, std::shared_ptr<EST_AudioSample>> sample) {
-            return sample.second->isRemoved;
-        });
+    // erase_if_map(
+    //     device->channel_arrays,
+    //     [&](std::pair<EST_AUDIO_HANDLE, std::shared_ptr<EST_Channel>> sample) {
+    //         return sample.second->isRemoved;
+    //     });
+
+    device->channel_arrays.erase(
+        std::remove_if(
+            device->channel_arrays.begin(),
+            device->channel_arrays.end(),
+            [](std::shared_ptr<EST_Channel> &channel) {
+                return channel->isRemoved;
+            }),
+        device->channel_arrays.end());
 
     if (device->callbacks.size()) {
         for (auto &it : device->callbacks) {
-            it.callback((EST_AUDIO_HANDLE)INVALID_HANDLE, it.userdata, pOutputFloat, frameCount);
+            it.callback(nullptr, it.userdata, pOutputFloat, frameCount);
         }
     }
 
@@ -171,15 +167,15 @@ static void data_callback(ma_device *pObject, void *pOutput, const void *pInput,
     (void)pInput;
 }
 
-EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags, EST_DEVICE_HANDLE *out)
+struct EST_Device *EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags)
 {
-    EST_AudioDevice *device = nullptr;
+    EST_Device *device = nullptr;
 
     try {
-        device = new EST_AudioDevice;
+        device = new EST_Device;
     } catch (std::bad_alloc &alloc) {
-        EST_SetError(alloc.what());
-        return EST_ERROR_OUT_OF_MEMORY;
+        EST_ErrorSetMessage(alloc.what());
+        return nullptr;
     }
 
     int channels = 2;
@@ -188,8 +184,10 @@ EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags, EST_DEVIC
     }
 
     if (FLAG_EXIST(flags, EST_DEVICE_FORMAT_S16)) {
-        EST_SetError("'EST_DEVICE_FORMAT_S16' is not yet supported!");
-        return EST_ERROR_INVALID_ARGUMENT;
+        EST_ErrorSetMessage("'EST_DEVICE_FORMAT_S16' is not yet supported!");
+
+        delete device;
+        return nullptr;
     }
 
     device->channels = channels;
@@ -204,33 +202,31 @@ EST_RESULT EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags, EST_DEVIC
 
     auto result = ma_device_init(NULL, &config, &device->device);
     if (result != MA_SUCCESS) {
-        EST_SetError("Failed to initialize audio device");
-        ma_context_uninit(&device->context);
-        return EST_ERROR_INVALID_OPERATION;
+        EST_ErrorSetMessage("Failed to initialize audio device");
+
+        delete device;
+        return nullptr;
     }
 
     if (ma_device_start(&device->device) != MA_SUCCESS) {
-        EST_SetError("Failed to start audio device");
+        EST_ErrorSetMessage("Failed to start audio device");
         ma_device_uninit(&device->device);
-        ma_context_uninit(&device->context);
-        return EST_ERROR_INVALID_OPERATION;
+
+        delete device;
+        return nullptr;
     }
 
     device->temporaryData.resize(4095 * kMaxChannels);
     device->processingData.resize(4095 * kMaxChannels);
 
     device->mutex = std::make_shared<std::mutex>();
-
-    *out = reinterpret_cast<EST_DEVICE_HANDLE>(device);
-    return EST_OK;
+    return device;
 }
 
-EST_RESULT EST_GetInfo(EST_DEVICE_HANDLE devhandle, est_device_info *info)
+EST_RESULT EST_GetInfo(EST_Device *device, est_device_info *info)
 {
-    EST_AudioDevice *device = reinterpret_cast<EST_AudioDevice *>(devhandle);
-
     if (!device) {
-        EST_SetError("No context");
+        EST_ErrorSetMessage("No context");
         return EST_ERROR_INVALID_STATE;
     }
 
@@ -242,20 +238,19 @@ EST_RESULT EST_GetInfo(EST_DEVICE_HANDLE devhandle, est_device_info *info)
     return EST_OK;
 }
 
-EST_RESULT EST_DeviceFree(EST_DEVICE_HANDLE devhandle)
+EST_RESULT EST_DeviceFree(EST_Device *device)
 {
-    EST_AudioDevice *device = reinterpret_cast<EST_AudioDevice *>(devhandle);
-
     if (!device) {
-        EST_SetError("No context");
+        EST_ErrorSetMessage("No context");
         return EST_ERROR_INVALID_STATE;
     }
 
-    for (auto &it : device->samples) {
-        EST_SampleFree(device, it.first);
+    for (auto &channel : device->channel_arrays) {
+        channel->isRemoved = true;
     }
 
-    while (device->samples.size() > 0) {
+    // wait for all channels to be removed in audio thread
+    while (device->channel_arrays.size() > 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
     }
 
@@ -263,18 +258,4 @@ EST_RESULT EST_DeviceFree(EST_DEVICE_HANDLE devhandle)
 
     delete device;
     return EST_OK;
-}
-
-const char *EST_GetError()
-{
-    if (g_error.empty()) {
-        return nullptr;
-    }
-
-    return g_error.c_str();
-}
-
-void EST_SetError(const char *error)
-{
-    g_error = error;
 }

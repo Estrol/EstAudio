@@ -5,6 +5,7 @@
 
 #include "Audio/Device.h"
 #include "Audio/Sample.h"
+#include "Audio/Channel.h"
 
 #if __cplusplus
 extern "C" {
@@ -15,12 +16,19 @@ extern "C" {
 // The error message
 // or
 // null if no error
-EST_API const char *EST_GetError();
+EST_API const char *EST_ErrorGetMessage();
 
 // INTERNAL, set error message (NOT THREAD SAFE)
 // Params:
 // error - The error message
-EST_API void EST_SetError(const char *error);
+EST_API void EST_ErrorSetMessage(const char *message);
+
+// Translate error code to message
+// Params:
+// code - The error code
+// Returns:
+// The error message
+EST_API const char *EST_ErrorTranslateMessage(enum EST_ERROR_CODE code);
 
 #if __cplusplus
 }
