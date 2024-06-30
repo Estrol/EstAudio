@@ -2,6 +2,7 @@
 #define __AUDIO_INTERNAL_H_
 
 #include <EstAudio.h>
+#include "../Unknown.h"
 
 #include "../third-party/miniaudio/miniaudio_decoders.h"
 #include "../third-party/signalsmith-stretch/signalsmith-stretch.h"
@@ -43,11 +44,13 @@ struct EST_Attribute
     bool  looping = false;
 };
 
-#define EST_SAMPLE_MAGIC "ESTS"
+constexpr char EST_SAMPLE_MAGIC[5] = "ESTS";
 
 struct EST_Sample
 {
-    const char signature[5] = EST_SAMPLE_MAGIC;
+    EST_Unknown base = {
+        EST_UNKNOWN_SAMPLE
+    };
 
     int channels = 0;
     int sampleRate = 0;
@@ -69,13 +72,17 @@ struct EST_ResamplerDestructor
     }
 };
 
-#define EST_CHANNEL_MAGIC "ESTC"
+constexpr char EST_CHANNEL_MAGIC[5] = "ESTC";
 
 struct EST_Channel
 {
-    const char magic[5] = EST_CHANNEL_MAGIC;
+    EST_Unknown base = {
+        EST_UNKNOWN_CHANNEL
+    };
 
-    int channels = 0;
+    int         channels = 0;
+    ma_uint32   sampleRate = 0;
+    std::string memoryHash = "";
 
     ma_audio_buffer      buffer = {};
     ma_panner            panner = {};
@@ -94,16 +101,36 @@ struct EST_Channel
     std::vector<EST_ChannelDataCallback>  callbacks;
 };
 
+struct EST_ChannelDestructor
+{
+    inline void operator()(EST_Channel *channel) const
+    {
+        if (!channel->isInit) {
+            return;
+        }
+
+        ma_audio_buffer_uninit(&channel->buffer);
+        ma_channel_converter_uninit(&channel->converter, nullptr);
+        ma_gainer_uninit(&channel->gainer, nullptr);
+    }
+};
+
 struct EST_MemoryItem
 {
     std::vector<float> data;
     int                pcmSize = 0;
     int                channels = 0;
     int                sampleRate = 0;
+
+    int useCount = 0;
 };
 
 struct EST_Device
 {
+    EST_Unknown base = {
+        EST_UNKNOWN_DEVICE
+    };
+
     int channels = 0;
 
     ma_context context = {};

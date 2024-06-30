@@ -7,8 +7,9 @@ EST_RESULT EST_EncoderSeek(EST_Encoder *handle, int index)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
@@ -53,8 +54,9 @@ EST_RESULT EST_EncoderRender(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
@@ -68,9 +70,9 @@ EST_RESULT EST_EncoderRender(EST_Encoder *handle)
         static_cast<float>(handle->decoder.outputSampleRate));
     handle->numOfPcmProcessed = 0;
 
-    int                bufferSize = static_cast<int>(::floor(targetRead * handle->decoder.outputChannels * handle->rate));
-    std::vector<float> buffer(bufferSize);
-    std::vector<float> temp(buffer.size());
+    // int                bufferSize = static_cast<int>(::floor(targetRead * handle->decoder.outputChannels * handle->rate));
+    std::vector<float> buffer(4095);
+    std::vector<float> temp(4095);
 
     /*
      * This is bit tricky, as I want my encoder to support both resampler and timestretch
@@ -206,8 +208,9 @@ EST_RESULT EST_EncoderGetData(EST_Encoder *handle, void *data, int *size)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
@@ -235,8 +238,9 @@ EST_RESULT EST_EncoderFlushData(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
@@ -253,8 +257,9 @@ EST_RESULT EST_EncoderGetAvailableDataSize(EST_Encoder *handle, int *size)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 

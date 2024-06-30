@@ -1,6 +1,7 @@
 #include "ChannelInternal.h"
 #include "../../Encoder/EncoderInternal.h"
 #include "../../Utils/IO.h"
+#include <format>
 
 struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
 {
@@ -14,17 +15,17 @@ struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
         return nullptr;
     }
 
-    if (memcmp(handle->signature, EST_SAMPLE_MAGIC, 5) == 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_SAMPLE) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return nullptr;
     }
 
-    int    channels = handle->channels;
-    int    pcmSize = handle->pcmSize;
-    int    sampleRate = handle->sampleRate;
-    float *data = &handle->data[0];
+    int channels = handle->channels;
+    int pcmSize = handle->pcmSize;
+    int sampleRate = handle->sampleRate;
 
-    return InternalInit(device, data, channels, pcmSize, sampleRate);
+    return InternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
 }
 
 int EST_SampleGetChannels(EST_Device *device, EST_Sample *handle, int howManyChannelsToCreated, EST_Channel **out)
@@ -39,7 +40,8 @@ int EST_SampleGetChannels(EST_Device *device, EST_Sample *handle, int howManyCha
         return 0;
     }
 
-    if (memcmp(handle->signature, EST_SAMPLE_MAGIC, 5) == 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_SAMPLE) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return 0;
     }
@@ -71,7 +73,8 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
         return nullptr;
     }
 
-    if (memcmp(handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return nullptr;
     }
@@ -88,7 +91,7 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
     int pcmSize = handle->numOfPcmProcessed;
     int sampleRate = (int)handle->sampleRate;
 
-    return InternalInit(device, &handle->data[0], channels, pcmSize, sampleRate);
+    return InternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
 }
 
 int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyChannelsToCreated, EST_Channel **out)
@@ -103,7 +106,8 @@ int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyC
         return 0;
     }
 
-    if (memcmp(handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return 0;
     }

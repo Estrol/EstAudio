@@ -16,9 +16,11 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
     std::string hash = HashFile(filename);
     auto        it = device->memory.find(hash);
     if (it != device->memory.end()) {
+        it->second.useCount++;
+
         return InternalInit(
             device,
-            &it->second.data[0],
+            hash,
             it->second.channels,
             it->second.pcmSize,
             it->second.sampleRate);
@@ -78,10 +80,11 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
     item.pcmSize = (int)pcmSize;
     item.channels = channels;
     item.sampleRate = sampleRate;
+    item.useCount = 1;
 
     device->memory[hash] = std::move(item);
 
-    return InternalInit(device, &device->memory[hash].data[0], channels, (int)pcmSize, sampleRate);
+    return InternalInit(device, hash, channels, (int)pcmSize, sampleRate);
 }
 
 struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *data, size_t size)
@@ -104,9 +107,11 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
     std::string hash = HashBuffer(data, size);
     auto        it = device->memory.find(hash);
     if (it != device->memory.end()) {
+        it->second.useCount++;
+
         return InternalInit(
             device,
-            &it->second.data[0],
+            hash,
             it->second.channels,
             it->second.pcmSize,
             it->second.sampleRate);
@@ -166,8 +171,9 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
     item.pcmSize = (int)pcmSize;
     item.channels = channels;
     item.sampleRate = sampleRate;
+    item.useCount = 1;
 
     device->memory[hash] = std::move(item);
 
-    return InternalInit(device, &device->memory[hash].data[0], channels, (int)pcmSize, sampleRate);
+    return InternalInit(device, hash, channels, (int)pcmSize, sampleRate);
 }

@@ -4,6 +4,7 @@
 #include <EstTypes.h>
 #include <EstEncoder.h>
 #include <EstAudio.h>
+#include "../Unknown.h"
 
 #include "../third-party/signalsmith-stretch/signalsmith-stretch.h"
 #include "../third-party/miniaudio/miniaudio_decoders.h"
@@ -22,8 +23,11 @@ constexpr int kESTEncoderSignature = 255 * 0xff;
 
 struct EST_Encoder
 {
-    const char signature[8] = EST_ENCODER_MAGIC;
-    void      *userData = NULL;
+    EST_Unknown base = {
+        EST_UNKNOWN_ENCODER
+    };
+
+    void *userData = NULL;
 
     est_encoder_callback callback = NULL;
     std::vector<float>   data;

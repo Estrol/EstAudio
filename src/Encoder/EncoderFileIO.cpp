@@ -142,8 +142,9 @@ EST_RESULT EST_EncoderFree(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
@@ -151,7 +152,7 @@ EST_RESULT EST_EncoderFree(EST_Encoder *handle)
     ma_gainer_uninit(&handle->gainer, nullptr);
     ma_channel_converter_uninit(&handle->converter, nullptr);
 
-    memset((void *)handle->signature, 0, 5);
+    unknown->type = EST_UNKNOWN_NONE;
 
     delete handle;
     return EST_OK;

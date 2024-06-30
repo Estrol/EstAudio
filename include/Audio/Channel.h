@@ -19,19 +19,19 @@ EST_API struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encode
 
 EST_API int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyChannelsToCreated, EST_Channel **out);
 
-EST_API enum EST_RESULT EST_ChannelPlay(EST_Device *device, EST_Channel *handle, EST_BOOL restart);
+EST_API enum EST_RESULT EST_ChannelPlay(EST_Channel *handle, EST_BOOL restart);
 
-EST_API enum EST_RESULT EST_ChannelPause(EST_Device *device, EST_Channel *handle);
+EST_API enum EST_RESULT EST_ChannelPause(EST_Channel *handle);
 
-EST_API enum EST_RESULT EST_ChannelStop(EST_Device *device, EST_Channel *handle);
+EST_API enum EST_RESULT EST_ChannelStop(EST_Channel *handle);
 
-EST_API enum EST_RESULT EST_ChannelFree(EST_Device *device, EST_Channel *handle);
+EST_API enum EST_RESULT EST_ChannelFree(EST_Channel *handle);
 
-EST_API enum EST_BOOL EST_ChannelIsPlaying(EST_Device *device, EST_Channel *handle);
+EST_API enum EST_BOOL EST_ChannelIsPlaying(EST_Channel *handle);
 
-EST_API enum EST_RESULT EST_ChannelSetAttribute(EST_Device *device, EST_Channel *handle, est_attribute_value *value);
+EST_API enum EST_RESULT EST_ChannelSetAttribute(EST_Channel *handle, est_attribute_value *value);
 
-EST_API enum EST_RESULT EST_ChannelGetAttribute(EST_Device *device, EST_Channel *handle, est_attribute_value *value);
+EST_API enum EST_RESULT EST_ChannelGetAttribute(EST_Channel *handle, est_attribute_value *value);
 
 #if __cplusplus
 }

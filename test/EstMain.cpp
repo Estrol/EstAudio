@@ -13,32 +13,31 @@ int main()
         return 1;
     }
 
-    EST_Encoder *encoder = EST_EncoderLoad("F:\\test.wav", nullptr, EST_DECODER_FLAGS::EST_DECODER_UNKNOWN);
-    if (!encoder) {
-        printf("Failed to load encoder %s\n", EST_ErrorGetMessage());
+    EST_Sample *sample = EST_SampleLoad("F:\\test.wav");
+    if (!sample) {
+        printf("Failed to load sample %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
-    EST_EncoderSetAttribute(encoder, EST_ATTRIB_ENCODER_TEMPO, 1.5f);
-
-    EST_EncoderRender(encoder);
-
-    EST_Channel *channel = EST_EncoderGetChannel(dev, encoder);
-    if (!channel) {
-        printf("Failed to get channel %s\n", EST_ErrorGetMessage());
+    std::vector<EST_Channel *> channels(2);
+    int                        size = EST_SampleGetChannels(dev, sample, 2, channels.data());
+    if (size != 2) {
+        printf("Failed to get channels %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
-    EST_ChannelPlay(dev, channel, EST_FALSE);
-
-    while (EST_ChannelIsPlaying(dev, channel)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < size; i++) {
+        EST_ChannelPlay(channels[i], EST_TRUE);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 
-    EST_ChannelStop(dev, channel);
-    EST_ChannelFree(dev, channel);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 
-    EST_EncoderFree(encoder);
+    for (int i = 0; i < size; i++) {
+        EST_ChannelFree(channels[i]);
+    }
+
+    EST_SampleFree(sample);
     EST_DeviceFree(dev);
 
     return 0;

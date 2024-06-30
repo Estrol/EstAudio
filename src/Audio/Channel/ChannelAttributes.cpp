@@ -1,18 +1,14 @@
 #include "ChannelInternal.h"
 
-EST_RESULT EST_ChannelSetAttribute(EST_Device *device, EST_Channel *handle, est_attribute_value *value)
+EST_RESULT EST_ChannelSetAttribute(EST_Channel *handle, est_attribute_value *value)
 {
-    if (!device) {
-        EST_ErrorSetMessage("EST_ChannelSetAttribute: device is nullptr");
-        return EST_ERROR_INVALID_ARGUMENT;
-    }
-
     if (!handle) {
         EST_ErrorSetMessage("EST_ChannelSetAttribute: handle is nullptr");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(handle->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -38,7 +34,7 @@ EST_RESULT EST_ChannelSetAttribute(EST_Device *device, EST_Channel *handle, est_
             }
 
             handle->attributes.rate = value->fValue;
-            ma_resampler_set_rate(&handle->pitch->resampler, (ma_uint32)(value->fValue * (float)handle->buffer.ref.sampleRate), handle->buffer.ref.sampleRate);
+            ma_resampler_set_rate(&handle->pitch->resampler, (ma_uint32)(value->fValue * (float)handle->sampleRate), handle->sampleRate);
             break;
         case EST_ATTRIB_PITCH:
             if (value->type != EST_ATTRIB_VAL_BOOL) {
@@ -68,15 +64,12 @@ EST_RESULT EST_ChannelSetAttribute(EST_Device *device, EST_Channel *handle, est_
             EST_ErrorSetMessage("Invalid attribute");
             return EST_ERROR_INVALID_ARGUMENT;
     }
+
+    return EST_OK;
 }
 
-EST_RESULT EST_ChannelGetAttribute(EST_Device *device, EST_Channel *handle, est_attribute_value *value)
+EST_RESULT EST_ChannelGetAttribute(EST_Channel *handle, est_attribute_value *value)
 {
-    if (!device) {
-        EST_ErrorSetMessage("EST_ChannelGetAttribute: device is nullptr");
-        return EST_ERROR_INVALID_ARGUMENT;
-    }
-
     if (!handle) {
         EST_ErrorSetMessage("EST_ChannelGetAttribute: handle is nullptr");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -87,28 +80,45 @@ EST_RESULT EST_ChannelGetAttribute(EST_Device *device, EST_Channel *handle, est_
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
+        EST_ErrorSetMessage("Invalid pointer magic");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
     switch (value->attribute) {
         case EST_ATTRIB_VOLUME:
+        {
+
             ma_result result = ma_gainer_get_master_volume(&handle->gainer, &value->fValue);
             if (result != MA_SUCCESS) {
                 EST_ErrorSetMessage("Failed to get volume");
                 return EST_ERROR_INVALID_OPERATION;
             }
-            break;
+        } break;
         case EST_ATTRIB_RATE:
+        {
+
             value->fValue = handle->attributes.rate;
-            break;
+        } break;
         case EST_ATTRIB_PITCH:
+        {
             value->bValue = (EST_BOOL)handle->pitch->isPitched;
-            break;
+        } break;
         case EST_ATTRIB_PAN:
+        {
             value->fValue = ma_panner_get_pan(&handle->panner);
-            break;
+        } break;
         case EST_ATTRIB_LOOPING:
+        {
             value->bValue = (EST_BOOL)handle->attributes.looping;
-            break;
+        } break;
         default:
+        {
             EST_ErrorSetMessage("Invalid attribute");
             return EST_ERROR_INVALID_ARGUMENT;
+        }
     }
+
+    return EST_OK;
 }

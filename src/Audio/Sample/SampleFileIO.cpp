@@ -1,5 +1,6 @@
 #include "../Internal.h"
 #include "../../Utils/IO.h"
+#include "../../Encoder/EncoderInternal.h"
 
 EST_Sample *EST_SampleLoad(const char *filename)
 {
@@ -150,12 +151,49 @@ EST_RESULT EST_SampleFree(EST_Sample *sample)
         return EST_ERROR;
     }
 
-    if (memcmp(&sample->signature, EST_SAMPLE_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("EST_SampleFree: invalid pointer magic");
-        return EST_ERROR;
+    EST_Unknown *unknown = (EST_Unknown *)sample;
+    if (unknown->type != EST_UNKNOWN_SAMPLE) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    memset((void *)sample->signature, 0, 5);
+    unknown->type = EST_UNKNOWN_NONE;
     delete sample;
     return EST_OK;
+}
+
+EST_Sample *EST_SampleLoadFromEncoder(EST_Encoder *handle)
+{
+    if (!handle) {
+        EST_ErrorSetMessage("EST_SampleFromEncoder: encoder is nullptr");
+        return nullptr;
+    }
+
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("EST_SampleFromEncoder: invalid handle");
+        return nullptr;
+    }
+
+    if (handle->numOfPcmProcessed == 0) {
+        EST_RESULT renderResult = EST_EncoderRender(handle);
+        if (renderResult != EST_OK) {
+            EST_ErrorSetMessage("EST_SampleFromEncoder: failed to render encoder");
+            return nullptr;
+        }
+    }
+
+    int channels = handle->channels;
+    int pcmSize = handle->numOfPcmProcessed;
+    int sampleRate = (int)handle->sampleRate;
+
+    EST_Sample *sample = new EST_Sample;
+    sample->channels = channels;
+    sample->sampleRate = sampleRate;
+    sample->pcmSize = pcmSize;
+
+    sample->data.resize(pcmSize * channels);
+    std::copy(handle->data.begin(), handle->data.end(), sample->data.begin());
+
+    return sample;
 }

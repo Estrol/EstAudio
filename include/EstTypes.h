@@ -96,14 +96,6 @@ enum EST_FILE_EXPORT {
     EST_EXPORT_WAV // Export sample as wav 16bit format
 };
 
-typedef unsigned int EST_AUDIO_HANDLE;   // EstAudio handle, used for playback channel, thread safety: safe
-typedef void        *EST_DEVICE_HANDLE;  // EstDeviceHandle, used for audio system, thread safety: safe
-typedef void        *EST_ENCODER_HANDLE; // EstEncoder handle, used for encoder channel, thread safety: safe
-typedef void        *EST_CHANNEL_HANDLE; // EstChannel handle, used for channel handle for EST_AUDIO_HANDLE, thread safety: safe
-typedef unsigned int EUINT32;
-#define INVALID_HANDLE -1
-#define INVALID_ECHANDLE (void *)0
-
 struct EST_Channel;
 struct EST_Device;
 struct EST_Sample;

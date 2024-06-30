@@ -10,7 +10,8 @@ bool IsChannelOnThisDevice(EST_Device *device, EST_Channel *channel)
         return false;
     }
 
-    if (memcmp(channel->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)channel;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return false;
     }
@@ -24,23 +25,16 @@ bool IsChannelOnThisDevice(EST_Device *device, EST_Channel *channel)
     return true;
 }
 
-EST_RESULT EST_ChannelPlay(EST_Device *device, EST_Channel *handle, EST_BOOL restart)
+EST_RESULT EST_ChannelPlay(EST_Channel *handle, EST_BOOL restart)
 {
-    if (!device) {
-        return EST_ERROR_INVALID_STATE;
-    }
-
     if (!handle) {
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(handle->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
-    }
-
-    if (!IsChannelOnThisDevice(device, handle)) {
-        return EST_ERROR_INVALID_DATA;
     }
 
     if (handle->isRemoved) {
@@ -63,23 +57,16 @@ EST_RESULT EST_ChannelPlay(EST_Device *device, EST_Channel *handle, EST_BOOL res
     return EST_OK;
 }
 
-EST_RESULT EST_ChannelPause(EST_Device *device, EST_Channel *handle)
+EST_RESULT EST_ChannelPause(EST_Channel *handle)
 {
-    if (!device) {
-        return EST_ERROR_INVALID_STATE;
-    }
-
     if (!handle) {
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(handle->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
-    }
-
-    if (!IsChannelOnThisDevice(device, handle)) {
-        return EST_ERROR_INVALID_DATA;
     }
 
     handle->isPlaying = EST_FALSE;
@@ -88,23 +75,16 @@ EST_RESULT EST_ChannelPause(EST_Device *device, EST_Channel *handle)
     return EST_OK;
 }
 
-EST_RESULT EST_ChannelStop(EST_Device *device, EST_Channel *handle)
+EST_RESULT EST_ChannelStop(EST_Channel *handle)
 {
-    if (!device) {
-        return EST_ERROR_INVALID_STATE;
-    }
-
     if (!handle) {
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(handle->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
-    }
-
-    if (!IsChannelOnThisDevice(device, handle)) {
-        return EST_ERROR_INVALID_DATA;
     }
 
     handle->isPlaying = EST_FALSE;
@@ -113,48 +93,34 @@ EST_RESULT EST_ChannelStop(EST_Device *device, EST_Channel *handle)
     return EST_OK;
 }
 
-EST_BOOL EST_ChannelIsPlaying(EST_Device *device, EST_Channel *handle)
+EST_BOOL EST_ChannelIsPlaying(EST_Channel *handle)
 {
-    if (!device) {
-        return EST_FALSE;
-    }
-
     if (!handle) {
         return EST_FALSE;
     }
 
-    if (memcmp(handle->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
-        return EST_FALSE;
-    }
-
-    if (!IsChannelOnThisDevice(device, handle)) {
         return EST_FALSE;
     }
 
     return (EST_BOOL)handle->isPlaying;
 }
 
-EST_RESULT EST_ChannelFree(EST_Device *device, EST_Channel *handle)
+EST_RESULT EST_ChannelFree(EST_Channel *handle)
 {
-    if (!device) {
-        return EST_ERROR_INVALID_STATE;
-    }
-
     if (!handle) {
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(handle->magic, EST_CHANNEL_MAGIC, 5) != 0) {
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (!IsChannelOnThisDevice(device, handle)) {
-        return EST_ERROR_INVALID_DATA;
-    }
-
-    memset((void *)handle->magic, 0, 5);
+    unknown->type = EST_UNKNOWN_NONE;
     handle->isRemoved = true;
 
     return EST_OK;

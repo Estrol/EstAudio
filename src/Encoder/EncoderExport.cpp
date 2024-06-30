@@ -7,8 +7,9 @@ EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type,
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 

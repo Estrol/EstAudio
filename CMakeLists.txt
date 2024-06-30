@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(EstAudio)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 include_directories("./include")
 
@@ -15,6 +15,7 @@ set(SOURCES
     "src/Audio/Channel/ChannelConverter.cpp"
     "src/Audio/Channel/ChannelFileIO.cpp"
     "src/Audio/Channel/ChannelInternal.cpp"
+    "src/Audio/Channel/ChannelAttributes.cpp"
     "src/Encoder/EncoderAttributes.cpp"
     "src/Encoder/EncoderProcessor.cpp"
     "src/Encoder/EncoderFileIO.cpp"

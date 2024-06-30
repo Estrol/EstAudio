@@ -23,10 +23,10 @@ EST_API enum EST_RESULT EST_EncoderGetInfo(struct EST_Encoder *handle, est_encod
 EST_API enum EST_RESULT EST_EncoderRender(struct EST_Encoder *handle);
 
 // Set the encoder channel attribute
-EST_API enum EST_RESULT EST_EncoderSetAttribute(struct EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS attribute, float value);
+EST_API enum EST_RESULT EST_EncoderSetAttribute(struct EST_Encoder *handle, est_attribute_value *value);
 
 // Get the encoder channel attribute
-EST_API enum EST_RESULT EST_EncoderGetAttribute(struct EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value);
+EST_API enum EST_RESULT EST_EncoderGetAttribute(struct EST_Encoder *handle, est_attribute_value *value);
 
 // Get decoded data from encoder channel
 // Note: Must use EST_EncoderRender first to get the decoded data

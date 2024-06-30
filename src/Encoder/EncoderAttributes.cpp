@@ -1,36 +1,52 @@
 #include "EncoderInternal.h"
 
-EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS attribute, float value)
+EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, est_attribute_value *value)
 {
     if (!handle) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    switch (attribute) {
+    switch (value->attribute) {
         case EST_ATTRIB_PAN:
         {
-            ma_panner_set_pan(&handle->panner, value);
+            if (value->type != EST_ATTRIB_VAL_FLOAT) {
+                EST_ErrorSetMessage("EST_EncoderSetAttribute: Invalid type for pan");
+                return EST_ERROR_INVALID_ARGUMENT;
+            }
+
+            ma_panner_set_pan(&handle->panner, value->fValue);
             break;
         }
 
         case EST_ATTRIB_VOLUME:
         {
-            ma_gainer_set_master_volume(&handle->gainer, value);
+            if (value->type != EST_ATTRIB_VAL_FLOAT) {
+                EST_ErrorSetMessage("EST_EncoderSetAttribute: Invalid type for volume");
+                return EST_ERROR_INVALID_ARGUMENT;
+            }
+
+            ma_gainer_set_master_volume(&handle->gainer, value->fValue);
             break;
         }
 
         case EST_ATTRIB_ENCODER_TEMPO:
         {
-            handle->rate = value;
+            if (value->type != EST_ATTRIB_VAL_FLOAT) {
+                EST_ErrorSetMessage("EST_EncoderSetAttribute: Invalid type for tempo");
+                return EST_ERROR_INVALID_ARGUMENT;
+            }
+
+            handle->rate = value->fValue;
 
             ma_uint32 originSample = handle->decoder.outputSampleRate;
-            ma_uint32 target = (ma_uint64)(originSample * value);
+            ma_uint32 target = (ma_uint64)(originSample * value->fValue);
 
             ma_resampler_set_rate(&handle->calculator, target, originSample);
             break;
@@ -38,17 +54,27 @@ EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS
 
         case EST_ATTRIB_ENCODER_PITCH:
         {
-            handle->pitch = value;
-            handle->processor->setTransposeFactor(value);
+            if (value->type != EST_ATTRIB_VAL_FLOAT) {
+                EST_ErrorSetMessage("EST_EncoderSetAttribute: Invalid type for pitch");
+                return EST_ERROR_INVALID_ARGUMENT;
+            }
+
+            handle->pitch = value->fValue;
+            handle->processor->setTransposeFactor(value->fValue);
             break;
         }
 
         case EST_ATTRIB_ENCODER_SAMPLERATE:
         {
-            handle->sampleRate = value;
+            if (value->type != EST_ATTRIB_VAL_FLOAT) {
+                EST_ErrorSetMessage("EST_EncoderSetAttribute: Invalid type for samplerate");
+                return EST_ERROR_INVALID_ARGUMENT;
+            }
+
+            handle->sampleRate = value->fValue;
 
             ma_uint32 originSample = handle->decoder.outputSampleRate;
-            ma_uint32 target = (ma_uint64)(value);
+            ma_uint32 target = (ma_uint64)(value->fValue);
 
             ma_data_converter_set_rate(&handle->decoder.converter, target, originSample);
             break;
@@ -64,46 +90,47 @@ EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS
     return EST_OK;
 }
 
-EST_RESULT EST_EncoderGetAttribute(EST_Encoder *handle, enum EST_ATTRIBUTE_FLAGS attribute, float *value)
+EST_RESULT EST_EncoderGetAttribute(EST_Encoder *handle, est_attribute_value *value)
 {
     if (!handle) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    switch (attribute) {
+    switch (value->attribute) {
         case EST_ATTRIB_PAN:
         {
-            *value = ma_panner_get_pan(&handle->panner);
+            value->fValue = ma_panner_get_pan(&handle->panner);
             break;
         }
 
         case EST_ATTRIB_VOLUME:
         {
-            ma_gainer_get_master_volume(&handle->gainer, value);
+            ma_gainer_get_master_volume(&handle->gainer, &value->fValue);
             break;
         }
 
         case EST_ATTRIB_ENCODER_TEMPO:
         {
-            *value = handle->rate;
+            value->fValue = handle->rate;
             break;
         }
 
         case EST_ATTRIB_ENCODER_PITCH:
         {
-            *value = handle->pitch;
+            value->fValue = handle->pitch;
             break;
         }
 
         case EST_ATTRIB_ENCODER_SAMPLERATE:
         {
-            *value = handle->sampleRate;
+            value->fValue = handle->sampleRate;
             break;
         }
 
@@ -124,8 +151,9 @@ EST_RESULT EST_EncoderGetInfo(EST_Encoder *handle, est_encoder_info *info)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (memcmp(&handle->signature, EST_ENCODER_MAGIC, 5) != 0) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    EST_Unknown *unknown = (EST_Unknown *)handle;
+    if (unknown->type != EST_UNKNOWN_ENCODER) {
+        EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 

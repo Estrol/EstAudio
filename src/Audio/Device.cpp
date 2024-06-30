@@ -137,18 +137,28 @@ static void data_callback(ma_device *pObject, void *pOutput, const void *pInput,
         }
     }
 
-    // erase_if_map(
-    //     device->channel_arrays,
-    //     [&](std::pair<EST_AUDIO_HANDLE, std::shared_ptr<EST_Channel>> sample) {
-    //         return sample.second->isRemoved;
-    //     });
+    std::function on_delete_callback = [&device](std::shared_ptr<EST_Channel> &channel) {
+        if (device->memory.find(channel->memoryHash) != device->memory.end()) {
+            auto &item = device->memory[channel->memoryHash];
+            item.useCount--;
+
+            if (item.useCount <= 0) {
+                device->memory.erase(channel->memoryHash);
+            }
+        }
+    };
 
     device->channel_arrays.erase(
         std::remove_if(
             device->channel_arrays.begin(),
             device->channel_arrays.end(),
-            [](std::shared_ptr<EST_Channel> &channel) {
-                return channel->isRemoved;
+            [on_delete_callback](std::shared_ptr<EST_Channel> &channel) {
+                bool isRemoved = channel->isRemoved;
+                if (isRemoved) {
+                    on_delete_callback(channel);
+                }
+
+                return isRemoved;
             }),
         device->channel_arrays.end());
 
