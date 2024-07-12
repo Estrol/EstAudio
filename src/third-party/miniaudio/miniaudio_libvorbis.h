@@ -506,8 +506,21 @@ MA_API ma_result ma_libvorbis_get_length_in_pcm_frames(ma_libvorbis* pVorbis, ma
 
 #if !defined(MA_NO_LIBVORBIS)
     {
-        /* I don't know how to reliably retrieve the length in frames using libvorbis, so returning 0 for now. */
-        *pLength = 0;
+        // get current seek pos
+        ogg_int64_t currentPos = ov_pcm_tell(&pVorbis->vf);
+
+        // We need to seek to the start to get the total length.
+        ov_raw_seek(&pVorbis->vf, 0);
+
+        ogg_int64_t libvorbisResult = ov_pcm_total(&pVorbis->vf, -1);
+        if (libvorbisResult < 0) {
+            return MA_INVALID_FILE;
+        }
+
+        *pLength = (ma_uint64)libvorbisResult;
+
+        // Seek back to the original position.
+        ov_pcm_seek(&pVorbis->vf, currentPos);
 
         return MA_SUCCESS;
     }

@@ -28,9 +28,11 @@ struct EST_Encoder
     };
 
     void *userData = NULL;
+    bool locked = false;
 
-    est_encoder_callback callback = NULL;
-    std::vector<float>   data;
+    EST_ENCODER_CALLBACK                        callback = NULL;
+    std::vector<float>                          data;
+    std::vector<std::shared_ptr<EST_Channel>>   owned_channels;
 
     ma_decoder           decoder = {};
     ma_gainer            gainer = {};

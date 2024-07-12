@@ -89,20 +89,28 @@ enum EST_STATUS {
     EST_STATUS_AT_END
 };
 
+enum EST_GET_DATA_TYPE
+{
+    EST_GET_DATA_TYPE_FFT,
+    EST_GET_DATA_TYPE_INDIVIDUAL
+};
+
 // Export file format, currently only support WAV
 // More format coming soon
 enum EST_FILE_EXPORT {
     EST_EXPORT_UNKNOWN,
-    EST_EXPORT_WAV // Export sample as wav 16bit format
+    EST_EXPORT_WAV, // Export sample as wav 16bit format
+    EST_EXPORT_OGG
 };
 
-struct EST_Channel;
-struct EST_Device;
-struct EST_Sample;
-struct EST_Encoder;
+typedef struct EST_Channel EST_Channel;
+typedef struct EST_Device EST_Device;
+typedef struct EST_Sample EST_Sample;
+typedef struct EST_Encoder EST_Encoder;
+typedef struct EST_DataCallback EST_DataCallback;
 
-typedef void (*est_channel_data_callback)(EST_Channel *pHandle, void *pUserData, void *pData, int frameCount);
-typedef void (*est_encoder_callback)(EST_Encoder *pHandle, void *pUserData, void *pData, int frameCount);
+typedef void (*EST_DATA_CALLBACK)(EST_Channel *pHandle, void *pUserData, void *pData, int frameCount);
+typedef void (*EST_ENCODER_CALLBACK)(EST_Encoder *pHandle, void *pUserData, void *pData, int frameCount);
 
 typedef struct
 {
@@ -123,6 +131,12 @@ enum EST_ATTRIB_VAL_TYPE {
     EST_ATTRIB_VAL_FLOAT,
     EST_ATTRIB_VAL_INT,
     EST_ATTRIB_VAL_BOOL
+};
+
+enum EST_CHANNEL_POSITION_TYPE {
+    EST_CHANNEL_POSITION_PERCENT,
+    EST_CHANNEL_POSITION_SAMPLES,
+    EST_CHANNEL_POSITION_TIME
 };
 
 typedef struct

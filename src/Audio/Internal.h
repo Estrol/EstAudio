@@ -19,9 +19,13 @@ using namespace signalsmith::stretch;
 
 #define FLAG_EXIST(flags, flag) ((flags & flag) == flag)
 
-struct EST_ChannelDataCallback
+struct EST_DataCallback
 {
-    est_channel_data_callback callback;
+    EST_Unknown base = {
+        EST_UNKNOWN_DATA_CALLBACK
+    };
+
+    EST_DATA_CALLBACK callback;
     void                     *userdata;
 };
 
@@ -57,6 +61,7 @@ struct EST_Sample
     int pcmSize = 0;
 
     std::vector<float> data = {};
+    std::vector<struct EST_Channel *> channelsPlaying = {};
 };
 
 struct EST_ResamplerDestructor
@@ -80,6 +85,8 @@ struct EST_Channel
         EST_UNKNOWN_CHANNEL
     };
 
+    EST_Device *device = nullptr;
+    
     int         channels = 0;
     ma_uint32   sampleRate = 0;
     std::string memoryHash = "";
@@ -88,7 +95,6 @@ struct EST_Channel
     ma_panner            panner = {};
     ma_gainer            gainer = {};
     ma_channel_converter converter = {};
-    EST_ChannelResampler resampler = {};
 
     EST_Attribute   attributes = {};
     enum EST_STATUS status = EST_STATUS_IDLE;
@@ -98,7 +104,7 @@ struct EST_Channel
     bool            isRemoved = false;
 
     std::shared_ptr<EST_ChannelResampler> pitch = {};
-    std::vector<EST_ChannelDataCallback>  callbacks;
+    std::vector<EST_DataCallback>  callbacks;
 };
 
 struct EST_ChannelDestructor
@@ -115,6 +121,8 @@ struct EST_ChannelDestructor
     }
 };
 
+const float EST_MEMORY_TIMEOUT = 15.0f;
+
 struct EST_MemoryItem
 {
     std::vector<float> data;
@@ -122,7 +130,8 @@ struct EST_MemoryItem
     int                channels = 0;
     int                sampleRate = 0;
 
-    int useCount = 0;
+    int   useCount = 0;
+    float useTimeout = 0.0f; // in seconds, only increment when none of the channels are using this memory
 };
 
 struct EST_Device
@@ -131,16 +140,19 @@ struct EST_Device
         EST_UNKNOWN_DEVICE
     };
 
-    int channels = 0;
+    int                                                         channels = 0;
+    std::chrono::time_point<std::chrono::high_resolution_clock> time = std::chrono::high_resolution_clock::now();
 
     ma_context context = {};
     ma_device  device = {};
 
     std::vector<float>                   temporaryData;
     std::vector<float>                   processingData;
-    std::vector<EST_ChannelDataCallback> callbacks;
+    std::vector<EST_DataCallback> callbacks;
 
     std::vector<std::shared_ptr<EST_Channel>> channel_arrays;
+    std::vector<EST_Channel*> guest_channel_arrays;
+
     std::string                               error;
     std::shared_ptr<std::mutex>               mutex;
 

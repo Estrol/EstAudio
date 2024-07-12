@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 project(EstAudioTest)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -14,9 +14,9 @@ add_executable(EstAudioTest ${SOURCES})
 target_link_libraries(EstAudioTest EstAudio)
 
 if (WIN32)
-    add_custom_command(TARGET EstAudioTest POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE:EstAudio>
-        $<TARGET_FILE_DIR:EstAudioTest>
-    )
+add_custom_target(CopyEstAudio ALWAYS
+    COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:EstAudio>
+    $<TARGET_FILE_DIR:EstAudioTest>
+)
 endif()

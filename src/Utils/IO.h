@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include "MD5.h"
 
 std::vector<char> ReadFile(const std::filesystem::path &path);
 bool              WriteFile(const std::filesystem::path &path, const std::vector<char> &data);

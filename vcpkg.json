@@ -8,6 +8,9 @@
         },
         {
             "name": "opusfile"
+        },
+        {
+            "name": "kissfft"
         }
     ],
     "builtin-baseline": "8b04a7bd93bef991818fc372bb83ce00ec1c1c16"

@@ -71,6 +71,7 @@
         "xtr1common": "cpp",
         "xutility": "cpp",
         "codecvt": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "iostream": "cpp"
     }
 }

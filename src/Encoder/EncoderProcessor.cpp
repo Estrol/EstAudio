@@ -56,8 +56,15 @@ EST_RESULT EST_EncoderRender(EST_Encoder *handle)
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        EST_ErrorSetMessage("Invalid handle");
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (handle->locked)
+    {
+        EST_ErrorSetMessage("Cannot process encoder when the encoder is locked!");
+        return EST_ERROR_ENCODER_INVALID_OPERATION;
     }
 
     ma_uint64 targetRead = static_cast<ma_uint64>(::floor(handle->decoder.outputSampleRate * 0.01));

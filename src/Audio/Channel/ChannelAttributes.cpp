@@ -9,7 +9,8 @@ EST_RESULT EST_ChannelSetAttribute(EST_Channel *handle, est_attribute_value *val
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
@@ -82,7 +83,8 @@ EST_RESULT EST_ChannelGetAttribute(EST_Channel *handle, est_attribute_value *val
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
 

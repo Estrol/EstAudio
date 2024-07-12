@@ -11,6 +11,11 @@ const char *EST_ErrorGetMessage()
 
 void EST_ErrorSetMessage(const char *message)
 {
+    if (message == nullptr) {
+        s_errorMessage.clear();
+        return;
+    }
+
     s_errorMessage = message;
 }
 

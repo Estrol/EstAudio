@@ -8,10 +8,10 @@ extern "C" {
 #endif
 
 // Load file as encoder channel
-EST_API struct EST_Encoder *EST_EncoderLoad(const char *path, est_encoder_callback callback, enum EST_DECODER_FLAGS flags);
+EST_API struct EST_Encoder *EST_EncoderLoad(const char *path, EST_ENCODER_CALLBACK callback, enum EST_DECODER_FLAGS flags);
 
 // Load audio file from memory as encoder channel
-EST_API struct EST_Encoder *EST_EncoderLoadMemory(const void *data, int size, est_encoder_callback callback, enum EST_DECODER_FLAGS flags);
+EST_API struct EST_Encoder *EST_EncoderLoadMemory(const void *data, int size, EST_ENCODER_CALLBACK callback, enum EST_DECODER_FLAGS flags);
 
 // Free the encoder channel
 EST_API enum EST_RESULT EST_EncoderFree(struct EST_Encoder *handle);

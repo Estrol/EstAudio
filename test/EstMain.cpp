@@ -4,6 +4,7 @@
 #include <thread>
 #include <chrono>
 #include <vector>
+#include <iostream>
 
 int main()
 {
@@ -13,30 +14,41 @@ int main()
         return 1;
     }
 
-    EST_Sample *sample = EST_SampleLoad("F:\\test.wav");
+    EST_Encoder* encoder = EST_EncoderLoad("F:\\test.ogg", nullptr, (EST_DECODER_FLAGS)0);
+    if (!encoder) {
+        printf("Failed to load encoder %s\n", EST_ErrorGetMessage());
+        return 1;
+    }
+
+    est_attribute_value value = {
+        EST_ATTRIB_ENCODER_TEMPO,
+        EST_ATTRIB_VAL_FLOAT,
+        1.5f
+    };
+
+    EST_EncoderSetAttribute(encoder, &value);
+    EST_EncoderRender(encoder);
+
+    EST_Sample *sample = EST_SampleLoadFromEncoder(encoder);
     if (!sample) {
         printf("Failed to load sample %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
-    std::vector<EST_Channel *> channels(2);
-    int                        size = EST_SampleGetChannels(dev, sample, 2, channels.data());
-    if (size != 2) {
-        printf("Failed to get channels %s\n", EST_ErrorGetMessage());
+    EST_EncoderFree(encoder);
+
+    EST_Channel *channel = EST_SampleGetChannel(dev, sample);
+    if (!channel) {
+        printf("Failed to get channel %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
-    for (int i = 0; i < size; i++) {
-        EST_ChannelPlay(channels[i], EST_TRUE);
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-    }
+    EST_ChannelSeekPosition(channel, EST_CHANNEL_POSITION_TIME, 15000);
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    EST_ChannelPlay(channel, EST_FALSE);
 
-    for (int i = 0; i < size; i++) {
-        EST_ChannelFree(channels[i]);
-    }
-
+    std::this_thread::sleep_for(std::chrono::seconds(15));
+    
     EST_SampleFree(sample);
     EST_DeviceFree(dev);
 

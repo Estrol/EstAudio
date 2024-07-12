@@ -28,12 +28,14 @@ EST_Sample *EST_SampleLoad(const char *filename)
     ma_decoder decoder;
     ma_result  result = ma_decoder_init_file(filename, &config, &decoder);
 
+    ma_uint64 framesAvailable = 0;
+    result = ma_decoder_get_available_frames(&decoder, &framesAvailable);
+
     if (result != MA_SUCCESS) {
         EST_ErrorSetMessage("EST_SampleLoad: failed to load audio file");
         return nullptr;
     }
 
-    ma_uint64 pcmSize = 0;
     ma_uint32 channels = 0;
     ma_uint32 sampleRate = 0;
 
@@ -43,23 +45,26 @@ EST_Sample *EST_SampleLoad(const char *filename)
         return nullptr;
     }
 
-    result = ma_decoder_get_available_frames(&decoder, &pcmSize);
-    if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoad: failed to get available frames");
-        return nullptr;
-    }
-
-    std::vector<float> buffer(pcmSize * channels);
-    ma_uint64          pcmToRead = pcmSize;
-    while (pcmToRead > 0) {
+    std::vector<float> pcmData;
+    std::vector<float> buffer(4095 * channels);
+    ma_uint64          pcmToRead = 4095;
+    ma_uint64          pcmSize = 0;
+    while (true) {
         ma_uint64 framesRead = pcmToRead;
         result = ma_decoder_read_pcm_frames(&decoder, &buffer[0], framesRead, &framesRead);
-        if (result != MA_SUCCESS) {
-            EST_ErrorSetMessage("EST_SampleLoad: failed to read pcm frames");
-            return nullptr;
+        if (result != MA_SUCCESS || framesRead == 0) {
+            if (result != MA_AT_END) {
+                EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to read pcm frames");
+                return nullptr;
+            }
+
+            if (framesRead <= 0) {
+                break; // let it break here
+            }
         }
 
-        pcmToRead -= framesRead;
+        std::copy(buffer.begin(), buffer.begin() + framesRead * channels, std::back_inserter(pcmData));
+        pcmSize += framesRead;
     }
 
     ma_decoder_uninit(&decoder);
@@ -68,7 +73,7 @@ EST_Sample *EST_SampleLoad(const char *filename)
     sample->channels = channels;
     sample->sampleRate = sampleRate;
     sample->pcmSize = (int)pcmSize;
-    sample->data = buffer;
+    sample->data = std::move(pcmData);
 
     return sample;
 }
@@ -104,7 +109,6 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
         return nullptr;
     }
 
-    ma_uint64 pcmSize = 0;
     ma_uint32 channels = 0;
     ma_uint32 sampleRate = 0;
 
@@ -114,23 +118,26 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
         return nullptr;
     }
 
-    result = ma_decoder_get_available_frames(&decoder, &pcmSize);
-    if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to get available frames");
-        return nullptr;
-    }
-
-    std::vector<float> buffer(pcmSize * channels);
-    ma_uint64          pcmToRead = pcmSize;
-    while (pcmToRead > 0) {
+    std::vector<float> pcmData;
+    std::vector<float> buffer(4095 * channels);
+    ma_uint64          pcmToRead = 4095;
+    ma_uint64          pcmSize = 0;
+    while (true) {
         ma_uint64 framesRead = pcmToRead;
         result = ma_decoder_read_pcm_frames(&decoder, &buffer[0], framesRead, &framesRead);
-        if (result != MA_SUCCESS) {
-            EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to read pcm frames");
-            return nullptr;
+        if (result != MA_SUCCESS || framesRead == 0) {
+            if (result != MA_AT_END) {
+                EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to read pcm frames");
+                return nullptr;
+            }
+
+            if (framesRead <= 0) {
+                break; // let it break here
+            }
         }
 
-        pcmToRead -= framesRead;
+        std::copy(buffer.begin(), buffer.begin() + framesRead * channels, std::back_inserter(pcmData));
+        pcmSize += framesRead;
     }
 
     ma_decoder_uninit(&decoder);
@@ -139,7 +146,7 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
     sample->channels = channels;
     sample->sampleRate = sampleRate;
     sample->pcmSize = (int)pcmSize;
-    sample->data = buffer;
+    sample->data = std::move(pcmData);
 
     return sample;
 }
@@ -158,6 +165,12 @@ EST_RESULT EST_SampleFree(EST_Sample *sample)
     }
 
     unknown->type = EST_UNKNOWN_NONE;
+
+    for (auto &channel : sample->channelsPlaying) {
+        EST_ChannelStop(channel);
+        EST_ChannelFree(channel);
+    }
+
     delete sample;
     return EST_OK;
 }
@@ -171,7 +184,8 @@ EST_Sample *EST_SampleLoadFromEncoder(EST_Encoder *handle)
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        EST_ErrorSetMessage("EST_SampleFromEncoder: invalid handle");
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        EST_ErrorSetMessage(msg.c_str());
         return nullptr;
     }
 

@@ -28,7 +28,7 @@ EST_API void EST_ErrorSetMessage(const char *message);
 // code - The error code
 // Returns:
 // The error message
-EST_API const char *EST_ErrorTranslateMessage(enum EST_ERROR_CODE code);
+EST_API const char *EST_ErrorTranslateMessage(enum EST_RESULT code);
 
 #if __cplusplus
 }

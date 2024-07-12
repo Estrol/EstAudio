@@ -17,15 +17,22 @@ struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_SAMPLE));
+        EST_ErrorSetMessage(msg.c_str());
         return nullptr;
     }
 
     int channels = handle->channels;
     int pcmSize = handle->pcmSize;
     int sampleRate = handle->sampleRate;
+    
+    EST_Channel* channel = ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
 
-    return InternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
+    if (channel) {
+        handle->channelsPlaying.push_back(channel);
+    }
+
+    return channel;
 }
 
 int EST_SampleGetChannels(EST_Device *device, EST_Sample *handle, int howManyChannelsToCreated, EST_Channel **out)
@@ -42,7 +49,8 @@ int EST_SampleGetChannels(EST_Device *device, EST_Sample *handle, int howManyCha
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_SAMPLE));
+        EST_ErrorSetMessage(msg.c_str());
         return 0;
     }
 
@@ -74,8 +82,9 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
     }
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
-    if (unknown->type != EST_UNKNOWN_ENCODER) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        EST_ErrorSetMessage(msg.c_str());
         return nullptr;
     }
 
@@ -91,7 +100,8 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
     int pcmSize = handle->numOfPcmProcessed;
     int sampleRate = (int)handle->sampleRate;
 
-    return InternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
+    handle->locked = true;
+    return ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
 }
 
 int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyChannelsToCreated, EST_Channel **out)
@@ -107,8 +117,9 @@ int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyC
     }
 
     EST_Unknown *unknown = (EST_Unknown *)handle;
-    if (unknown->type != EST_UNKNOWN_ENCODER) {
-        EST_ErrorSetMessage("Invalid pointer magic");
+    if (unknown->type != EST_UNKNOWN_CHANNEL) {
+        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        EST_ErrorSetMessage(msg.c_str());
         return 0;
     }
 

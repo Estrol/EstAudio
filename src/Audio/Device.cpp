@@ -1,4 +1,5 @@
 #include "Internal.h"
+#include "Channel/ChannelInternal.h"
 
 namespace {
     constexpr int kMaxChannels = 2;
@@ -104,12 +105,23 @@ static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *p
 template <typename ContainerT, typename PredicateT>
 void erase_if_map(ContainerT &items, const PredicateT &predicate)
 {
-    for (auto it = items.begin(); it != items.end();) {
-        if (predicate(*it))
-            it = items.erase(it);
-        else
-            ++it;
+    auto beg = items.begin();
+    auto end = items.end();
+
+    for (; beg != end;) {
+        if (predicate(*beg)) {
+            beg = items.erase(beg);
+        } else {
+            ++beg;
+        }
     }
+}
+
+template <typename ContainerT, typename PredicateT>
+void erase_if(ContainerT &items, const PredicateT &predicate)
+{
+    auto it = std::remove_if(items.begin(), items.end(), predicate);
+    items.erase(it, items.end());
 }
 
 static void data_callback(ma_device *pObject, void *pOutput, const void *pInput, ma_uint32 frameCount)
@@ -119,6 +131,9 @@ static void data_callback(ma_device *pObject, void *pOutput, const void *pInput,
     }
 
     EST_Device *device = reinterpret_cast<EST_Device *>(pObject->pUserData);
+    auto        now = std::chrono::high_resolution_clock::now();
+    auto        duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - device->time).count();
+    float       delta = static_cast<float>(duration) / 1000.0f;
 
     float *pOutputFloat = reinterpret_cast<float *>(pOutput);
 
@@ -137,30 +152,75 @@ static void data_callback(ma_device *pObject, void *pOutput, const void *pInput,
         }
     }
 
+    for (auto channel : device->guest_channel_arrays) {
+        if (channel->isPlaying) {
+            ma_uint32 pcmReaded = data_mix_pcm(device, channel, pOutputFloat, frameCount);
+
+            if (pcmReaded < frameCount) {
+                if (channel->attributes.looping) {
+                    ma_audio_buffer_seek_to_pcm_frame(&channel->buffer, 0);
+                } else {
+                    channel->isAtEnd = true;
+                    channel->isPlaying = false;
+                }
+            }
+        }
+    }
+
     std::function on_delete_callback = [&device](std::shared_ptr<EST_Channel> &channel) {
         if (device->memory.find(channel->memoryHash) != device->memory.end()) {
             auto &item = device->memory[channel->memoryHash];
             item.useCount--;
-
-            if (item.useCount <= 0) {
-                device->memory.erase(channel->memoryHash);
-            }
         }
+
+        ChannelInternalFree(channel.get());
     };
 
-    device->channel_arrays.erase(
-        std::remove_if(
-            device->channel_arrays.begin(),
-            device->channel_arrays.end(),
-            [on_delete_callback](std::shared_ptr<EST_Channel> &channel) {
-                bool isRemoved = channel->isRemoved;
-                if (isRemoved) {
-                    on_delete_callback(channel);
-                }
+    std::function erase_callback = [&on_delete_callback](std::shared_ptr<EST_Channel> &channel) {
+        if (channel->isRemoved) {
+            on_delete_callback(channel);
+        }
 
-                return isRemoved;
-            }),
-        device->channel_arrays.end());
+        return channel->isRemoved;
+    };
+
+    std::function erase_check = [](std::shared_ptr<EST_Channel> &channel) {
+        return channel->isRemoved;
+    };
+
+    bool anyRemoved = std::any_of(device->channel_arrays.begin(), device->channel_arrays.end(), erase_check);
+    if (anyRemoved) {
+        std::lock_guard<std::mutex> lock(*device->mutex);
+
+        erase_if(device->channel_arrays, erase_callback);
+    }
+
+    std::function on_memory_callback = [&device, &delta](std::pair<const std::string, EST_MemoryItem> &memory) {
+        if (memory.second.useTimeout >= EST_MEMORY_TIMEOUT) {
+            return true;
+        }
+
+        return false;
+    };
+
+    for (auto &[key, value] : device->memory) {
+        if (value.useCount <= 0) {
+            value.useTimeout += delta;
+        } else {
+            value.useTimeout = 0.0f;
+        }
+    }
+
+    std::function memory_callback_check = [](std::pair<const std::string, EST_MemoryItem> &memory) {
+        return memory.second.useTimeout >= EST_MEMORY_TIMEOUT;
+    };
+
+    bool anyMemoryRemoved = std::any_of(device->memory.begin(), device->memory.end(), memory_callback_check);
+    if (anyMemoryRemoved) {
+        std::lock_guard<std::mutex> lock(*device->mutex);
+
+        erase_if_map(device->memory, on_memory_callback);
+    }
 
     if (device->callbacks.size()) {
         for (auto &it : device->callbacks) {
@@ -175,6 +235,8 @@ static void data_callback(ma_device *pObject, void *pOutput, const void *pInput,
 
     (void)pObject;
     (void)pInput;
+
+    device->time = now;
 }
 
 struct EST_Device *EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS flags)
@@ -239,6 +301,12 @@ EST_RESULT EST_GetInfo(EST_Device *device, est_device_info *info)
         EST_ErrorSetMessage("No context");
         return EST_ERROR_INVALID_STATE;
     }
+    
+    EST_Unknown* unknown = (EST_Unknown*)device;
+    if (unknown->type != EST_UNKNOWN_DEVICE) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
 
     info->channels = device->channels;
     info->deviceIndex = -1;
@@ -255,6 +323,12 @@ EST_RESULT EST_DeviceFree(EST_Device *device)
         return EST_ERROR_INVALID_STATE;
     }
 
+    EST_Unknown* unknown = (EST_Unknown*)device;
+    if (unknown->type != EST_UNKNOWN_DEVICE) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
     for (auto &channel : device->channel_arrays) {
         channel->isRemoved = true;
     }
@@ -268,4 +342,53 @@ EST_RESULT EST_DeviceFree(EST_Device *device)
 
     delete device;
     return EST_OK;
+}
+
+EST_DataCallback *EST_DeviceAddCallback(EST_Device *device, EST_DATA_CALLBACK callback, void *userData)
+{
+    if (!device) {
+        return nullptr;
+    }
+
+    EST_Unknown* unknown = (EST_Unknown*)device;
+    if (unknown->type != EST_UNKNOWN_DEVICE) {
+        EST_ErrorSetMessage("Invalid handle");
+        return nullptr;
+    }
+
+    EST_DataCallback callbackData;
+    callbackData.callback = callback;
+    callbackData.userdata = userData;
+
+    device->callbacks.push_back(callbackData);
+
+    return &device->callbacks[device->callbacks.size() - 1];
+}
+
+EST_RESULT EST_DeviceRemoveCallback(EST_Device *device, EST_DataCallback *callback)
+{
+    if (!device) {
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    EST_Unknown* unknown = (EST_Unknown*)device;
+    if (unknown->type != EST_UNKNOWN_DEVICE) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    unknown = (EST_Unknown*)callback;
+    if (unknown->type != EST_UNKNOWN_DATA_CALLBACK) {
+        EST_ErrorSetMessage("Invalid handle");
+        return EST_ERROR_INVALID_ARGUMENT;
+    }
+
+    for (int i = 0; i < device->callbacks.size(); i++) {
+        if (&device->callbacks[i] == callback) {
+            device->callbacks.erase(device->callbacks.begin() + i);
+            return EST_OK;
+        }
+    }
+
+    return EST_ERROR_INVALID_ARGUMENT;
 }

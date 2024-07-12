@@ -21,6 +21,10 @@ EST_API struct EST_Device *EST_DeviceInit(int sampleRate, enum EST_DEVICE_FLAGS 
 
 EST_API enum EST_RESULT EST_GetInfo(EST_Device *device, est_device_info *info);
 
+EST_API struct EST_DataCallback *EST_DeviceAddCallback(EST_Device *device, EST_DATA_CALLBACK callback, void *userData);
+
+EST_API enum EST_RESULT EST_DeviceRemoveCallback(EST_Device *device, struct EST_DataCallback *callback);
+
 // Shutdown the audio system
 // Returns:
 // EST_OK - The audio system was shutdown successfully

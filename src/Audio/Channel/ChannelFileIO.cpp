@@ -18,7 +18,7 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
     if (it != device->memory.end()) {
         it->second.useCount++;
 
-        return InternalInit(
+        return ChannelInternalInit(
             device,
             hash,
             it->second.channels,
@@ -84,7 +84,7 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
 
     device->memory[hash] = std::move(item);
 
-    return InternalInit(device, hash, channels, (int)pcmSize, sampleRate);
+    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate);
 }
 
 struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *data, size_t size)
@@ -109,7 +109,7 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
     if (it != device->memory.end()) {
         it->second.useCount++;
 
-        return InternalInit(
+        return ChannelInternalInit(
             device,
             hash,
             it->second.channels,
@@ -175,5 +175,24 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
 
     device->memory[hash] = std::move(item);
 
-    return InternalInit(device, hash, channels, (int)pcmSize, sampleRate);
+    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate);
+}
+
+enum EST_RESULT EST_ChannelGetData(EST_Channel *channel, float *data, int size, EST_GET_DATA_TYPE type)
+{
+    if (!channel) {
+        EST_ErrorSetMessage("EST_ChannelGetData: channel is nullptr");
+        return EST_ERROR;
+    }
+
+    if (!data) {
+        EST_ErrorSetMessage("EST_ChannelGetData: data is nullptr");
+        return EST_ERROR;
+    }
+
+    if ((type & EST_GET_DATA_TYPE_FFT) == EST_GET_DATA_TYPE_FFT) {
+        return ChannelInternalFFTGetData(channel, data, size, (type & EST_GET_DATA_TYPE_INDIVIDUAL) == EST_GET_DATA_TYPE_INDIVIDUAL);
+    }
+
+    return ChannelInternalGetData(channel, data, size);
 }
