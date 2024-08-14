@@ -23,7 +23,8 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
             hash,
             it->second.channels,
             it->second.pcmSize,
-            it->second.sampleRate);
+            it->second.sampleRate,
+            nullptr);
     }
 
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 2, 44100);
@@ -84,7 +85,7 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
 
     device->memory[hash] = std::move(item);
 
-    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate);
+    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate, nullptr);
 }
 
 struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *data, size_t size)
@@ -114,7 +115,8 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
             hash,
             it->second.channels,
             it->second.pcmSize,
-            it->second.sampleRate);
+            it->second.sampleRate,
+            nullptr);
     }
 
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 2, 44100);
@@ -175,23 +177,28 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
 
     device->memory[hash] = std::move(item);
 
-    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate);
+    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate, nullptr);
 }
 
-enum EST_RESULT EST_ChannelGetData(EST_Channel *channel, float *data, int size, EST_GET_DATA_TYPE type)
+inline bool IsFlagPresent(int flags, int flag)
+{
+    return (flags & flag) != 0;
+}
+
+int EST_ChannelGetData(EST_Channel *channel, float *data, int size, EST_GET_DATA_TYPE type)
 {
     if (!channel) {
         EST_ErrorSetMessage("EST_ChannelGetData: channel is nullptr");
-        return EST_ERROR;
+        return -1;
     }
 
     if (!data) {
         EST_ErrorSetMessage("EST_ChannelGetData: data is nullptr");
-        return EST_ERROR;
+        return -1;
     }
 
-    if ((type & EST_GET_DATA_TYPE_FFT) == EST_GET_DATA_TYPE_FFT) {
-        return ChannelInternalFFTGetData(channel, data, size, (type & EST_GET_DATA_TYPE_INDIVIDUAL) == EST_GET_DATA_TYPE_INDIVIDUAL);
+    if (IsFlagPresent(type, EST_GET_DATA_TYPE_FFT)) {
+        return ChannelInternalFFTGetData(channel, data, size, IsFlagPresent(type, EST_GET_DATA_TYPE_INDIVIDUAL));
     }
 
     return ChannelInternalGetData(channel, data, size);

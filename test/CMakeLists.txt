@@ -13,10 +13,10 @@ add_executable(EstAudioTest ${SOURCES})
 
 target_link_libraries(EstAudioTest EstAudio)
 
-if (WIN32)
-add_custom_target(CopyEstAudio ALWAYS
-    COMMAND ${CMAKE_COMMAND} -E copy
-    $<TARGET_FILE:EstAudio>
-    $<TARGET_FILE_DIR:EstAudioTest>
+# if (WIN32)
+add_custom_command(TARGET EstAudioTest POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:EstAudio>
+        $<TARGET_FILE_DIR:EstAudioTest>
 )
-endif()
+# endif()

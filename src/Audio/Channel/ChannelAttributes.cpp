@@ -19,6 +19,8 @@ EST_RESULT EST_ChannelSetAttribute(EST_Channel *handle, est_attribute_value *val
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
+    std::cout << "EST_ChannelSetAttribute: " << value->attribute << std::endl;
+
     switch (value->attribute) {
         case EST_ATTRIB_VOLUME:
             if (value->type != EST_ATTRIB_VAL_FLOAT) {
@@ -26,33 +28,30 @@ EST_RESULT EST_ChannelSetAttribute(EST_Channel *handle, est_attribute_value *val
                 return EST_ERROR_INVALID_ARGUMENT;
             }
 
+            handle->attributes.volume = value->fValue;
             ma_gainer_set_master_volume(&handle->gainer, value->fValue);
             break;
-        case EST_ATTRIB_RATE:
+
+        case EST_ATTRIB_SAMPLERATE:
             if (value->type != EST_ATTRIB_VAL_FLOAT) {
                 EST_ErrorSetMessage("EST_ChannelSetAttribute: Invalid type for rate");
                 return EST_ERROR_INVALID_ARGUMENT;
             }
 
-            handle->attributes.rate = value->fValue;
-            ma_resampler_set_rate(&handle->pitch->resampler, (ma_uint32)(value->fValue * (float)handle->sampleRate), handle->sampleRate);
+            handle->attributes.samplerate = value->fValue;
+            ma_resampler_set_rate(&handle->resampler, (ma_uint32)handle->attributes.samplerate, handle->sampleRate);
             break;
-        case EST_ATTRIB_PITCH:
-            if (value->type != EST_ATTRIB_VAL_BOOL) {
-                EST_ErrorSetMessage("EST_ChannelSetAttribute: Invalid type for pitch");
-                return EST_ERROR_INVALID_ARGUMENT;
-            }
 
-            handle->pitch->isPitched = value->bValue;
-            break;
         case EST_ATTRIB_PAN:
             if (value->type != EST_ATTRIB_VAL_FLOAT) {
                 EST_ErrorSetMessage("EST_ChannelSetAttribute: Invalid type for pan");
                 return EST_ERROR_INVALID_ARGUMENT;
             }
 
+            handle->attributes.pan = value->fValue;
             ma_panner_set_pan(&handle->panner, value->fValue);
             break;
+
         case EST_ATTRIB_LOOPING:
             if (value->type != EST_ATTRIB_VAL_BOOL) {
                 EST_ErrorSetMessage("EST_ChannelSetAttribute: Invalid type for looping");
@@ -61,6 +60,7 @@ EST_RESULT EST_ChannelSetAttribute(EST_Channel *handle, est_attribute_value *val
 
             handle->attributes.looping = value->bValue;
             break;
+
         default:
             EST_ErrorSetMessage("Invalid attribute");
             return EST_ERROR_INVALID_ARGUMENT;
@@ -90,36 +90,24 @@ EST_RESULT EST_ChannelGetAttribute(EST_Channel *handle, est_attribute_value *val
 
     switch (value->attribute) {
         case EST_ATTRIB_VOLUME:
-        {
+            value->fValue = handle->attributes.volume;
+            break;
 
-            ma_result result = ma_gainer_get_master_volume(&handle->gainer, &value->fValue);
-            if (result != MA_SUCCESS) {
-                EST_ErrorSetMessage("Failed to get volume");
-                return EST_ERROR_INVALID_OPERATION;
-            }
-        } break;
-        case EST_ATTRIB_RATE:
-        {
+        case EST_ATTRIB_SAMPLERATE:
+            value->fValue = handle->attributes.samplerate;
+            break;
 
-            value->fValue = handle->attributes.rate;
-        } break;
-        case EST_ATTRIB_PITCH:
-        {
-            value->bValue = (EST_BOOL)handle->pitch->isPitched;
-        } break;
         case EST_ATTRIB_PAN:
-        {
-            value->fValue = ma_panner_get_pan(&handle->panner);
-        } break;
+            value->fValue = handle->attributes.pan;
+            break;
+
         case EST_ATTRIB_LOOPING:
-        {
             value->bValue = (EST_BOOL)handle->attributes.looping;
-        } break;
+            break;
+
         default:
-        {
             EST_ErrorSetMessage("Invalid attribute");
             return EST_ERROR_INVALID_ARGUMENT;
-        }
     }
 
     return EST_OK;

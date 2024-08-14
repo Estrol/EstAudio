@@ -7,11 +7,15 @@
 extern "C" {
 #endif
 
-EST_API EST_Sample *EST_SampleLoad(const char *filename);
+EST_API struct EST_Sample *EST_SampleLoad(const char *filename);
 
-EST_API EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size);
+EST_API struct EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size);
 
-EST_API EST_Sample *EST_SampleLoadFromEncoder(EST_Encoder *encoder);
+EST_API struct EST_Sample *EST_SampleLoadFromEncoder(EST_Encoder *encoder);
+
+EST_API EST_RESULT EST_SampleSetAttribute(EST_Sample *sample, est_attribute_value *value);
+
+EST_API EST_RESULT EST_SampleGetAttribute(EST_Sample *sample, est_attribute_value *value);
 
 EST_API EST_RESULT EST_SampleFree(EST_Sample *sample);
 

@@ -5,6 +5,57 @@ namespace {
     constexpr int kMaxChannels = 2;
 } // namespace
 
+static ma_uint64 read_pcm_data(EST_Channel *channel, float *output, ma_uint64 frameCount)
+{
+    std::array<float, 4096 * kMaxChannels> temp = {}, temp2 = {};
+
+    if (channel->fx != nullptr) {
+        auto fx = channel->fx;
+        if (fx->lock) {
+            return frameCount;
+        }
+
+        ma_uint64 targetToReadThisIteration = frameCount;
+        ma_uint64 targetThisIteration = frameCount;
+
+        if (fx->attributes.tempo != 1.0f) {
+            ma_resampler_get_required_input_frame_count(&fx->resampler, frameCount, &targetToReadThisIteration);
+        }
+
+        ma_uint64 availableFrames = 0;
+        ma_audio_buffer_get_available_frames(&channel->buffer, &availableFrames);
+        if (availableFrames > 0) {
+            targetToReadThisIteration = ma_audio_buffer_read_pcm_frames(&channel->buffer, &temp[0], targetToReadThisIteration, MA_FALSE);
+
+            fx->framesAvailable += (int)targetThisIteration;
+        }
+
+        if (fx->framesAvailable > 0) {
+            fx->processor->process(&temp[0], (int)targetToReadThisIteration, &temp2[0], (int)targetThisIteration);
+
+            fx->framesAvailable -= (int)targetThisIteration;
+
+            if (fx->framesAvailable < 0) {
+                targetThisIteration += fx->framesAvailable;
+                fx->framesAvailable = 0;
+            }
+        } else {
+            targetThisIteration = 0;
+        }
+
+        std::copy(&temp2[0], &temp2[0] + targetThisIteration * channel->channels, output);
+
+        return targetThisIteration;
+    } else {
+        ma_uint64 readed = ma_audio_buffer_read_pcm_frames(&channel->buffer, output, frameCount, MA_FALSE);
+        if (readed == 0) {
+            return 0;
+        }
+
+        return readed;
+    }
+}
+
 static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *pOutput, ma_uint32 frameCount)
 {
     int       channels = device->channels;
@@ -32,17 +83,14 @@ static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *p
             expectedToReadThisIteration = totalFramesRemaining;
         }
 
-        if (channel->attributes.rate != 1.0f) {
-            ma_resampler_get_required_input_frame_count(
-                &channel->pitch->resampler,
-                framesToReadThisIteration,
-                &framesToReadThisIteration);
+        if ((ma_uint32)channel->attributes.samplerate != channel->buffer.ref.sampleRate) {
+            result = ma_resampler_get_required_input_frame_count(&channel->resampler, framesToReadThisIteration, &framesToReadThisIteration);
+            if (result != MA_SUCCESS) {
+                break;
+            }
         }
 
-        framesReadThisIteration = ma_audio_buffer_read_pcm_frames(&channel->buffer, &temp[0], framesToReadThisIteration, MA_FALSE);
-        if (framesReadThisIteration == 0) {
-            break;
-        }
+        framesReadThisIteration = read_pcm_data(channel, &temp[0], framesToReadThisIteration);
 
         if (channel->channels != device->channels) {
             ma_channel_converter_process_pcm_frames(&channel->converter, &temp2[0], &temp[0], framesReadThisIteration);
@@ -51,8 +99,8 @@ static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *p
             std::copy(&temp2[0], &temp2[0] + framesReadThisIteration * device->channels, &temp[0]);
         }
 
-        if (channel->attributes.rate != 1.0f) {
-            result = ma_resampler_process_pcm_frames(&channel->pitch->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
+        if ((ma_uint32)channel->attributes.samplerate != channel->buffer.ref.sampleRate) {
+            result = ma_resampler_process_pcm_frames(&channel->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
 
             if (result != MA_SUCCESS) {
                 break;
@@ -60,15 +108,7 @@ static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *p
 
             framesReadThisIteration = expectedToReadThisIteration;
 
-            if (!channel->pitch->isPitched) {
-                channel->pitch->processor->process(
-                    temp2,
-                    static_cast<int>(framesReadThisIteration),
-                    temp,
-                    static_cast<int>(framesReadThisIteration));
-            } else {
-                std::copy(temp2.begin(), temp2.begin() + framesReadThisIteration * channels, temp.begin());
-            }
+            std::copy(temp2.begin(), temp2.begin() + framesReadThisIteration * channels, temp.begin());
         }
 
         result = ma_panner_process_pcm_frames(&channel->panner, &temp2[0], &temp[0], framesReadThisIteration);
@@ -301,8 +341,8 @@ EST_RESULT EST_GetInfo(EST_Device *device, est_device_info *info)
         EST_ErrorSetMessage("No context");
         return EST_ERROR_INVALID_STATE;
     }
-    
-    EST_Unknown* unknown = (EST_Unknown*)device;
+
+    EST_Unknown *unknown = (EST_Unknown *)device;
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -323,7 +363,7 @@ EST_RESULT EST_DeviceFree(EST_Device *device)
         return EST_ERROR_INVALID_STATE;
     }
 
-    EST_Unknown* unknown = (EST_Unknown*)device;
+    EST_Unknown *unknown = (EST_Unknown *)device;
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -350,7 +390,7 @@ EST_DataCallback *EST_DeviceAddCallback(EST_Device *device, EST_DATA_CALLBACK ca
         return nullptr;
     }
 
-    EST_Unknown* unknown = (EST_Unknown*)device;
+    EST_Unknown *unknown = (EST_Unknown *)device;
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return nullptr;
@@ -371,13 +411,13 @@ EST_RESULT EST_DeviceRemoveCallback(EST_Device *device, EST_DataCallback *callba
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown* unknown = (EST_Unknown*)device;
+    EST_Unknown *unknown = (EST_Unknown *)device;
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    unknown = (EST_Unknown*)callback;
+    unknown = (EST_Unknown *)callback;
     if (unknown->type != EST_UNKNOWN_DATA_CALLBACK) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;

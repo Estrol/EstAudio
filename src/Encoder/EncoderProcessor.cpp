@@ -61,8 +61,7 @@ EST_RESULT EST_EncoderRender(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    if (handle->locked)
-    {
+    if (handle->locked) {
         EST_ErrorSetMessage("Cannot process encoder when the encoder is locked!");
         return EST_ERROR_ENCODER_INVALID_OPERATION;
     }

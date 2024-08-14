@@ -26,29 +26,42 @@ struct EST_DataCallback
     };
 
     EST_DATA_CALLBACK callback;
-    void                     *userdata;
+    void             *userdata;
 };
 
-struct EST_ChannelResampler
+struct EST_FX_Attributes
 {
-    bool isInit = false;
-    bool isPitched = true;
-    bool isAtEnd = false;
+    float pitch = 1.0f;
+    float tempo = 1.0f;
+};
 
-    ma_resampler                        resampler = {};
+struct EST_FX
+{
+    EST_Unknown base = {
+        EST_UNKNOWN_FX
+    };
+
+    std::vector<float> data = {};
+    int                channels = 0;
+    int                sampleRate = 0;
+    int                pcmSize = 0;
+
+    EST_FX_Attributes attributes = {};
+
+    int  framesAvailable = 0;
+    bool lock = false;
+
     std::shared_ptr<SignalsmithStretch> processor = {};
+    ma_resampler                        resampler = {}; // used for calculate the required buffer size
 };
 
 struct EST_Attribute
 {
     float volume = 1.0f;
-    float rate = 1.0f;
-    float pitch = 1.0f;
+    float samplerate = 44100.0f;
     float pan = 0.0f;
     bool  looping = false;
 };
-
-constexpr char EST_SAMPLE_MAGIC[5] = "ESTS";
 
 struct EST_Sample
 {
@@ -60,21 +73,12 @@ struct EST_Sample
     int sampleRate = 0;
     int pcmSize = 0;
 
-    std::vector<float> data = {};
+    EST_Attribute attributes = {};
+
+    std::vector<float>                data = {};
     std::vector<struct EST_Channel *> channelsPlaying = {};
-};
 
-struct EST_ResamplerDestructor
-{
-    inline void operator()(EST_ChannelResampler *sample) const
-    {
-        if (!sample->isInit) {
-            return;
-        }
-
-        ma_resampler_uninit(&sample->resampler, nullptr);
-        sample->processor->reset();
-    }
+    EST_FX *fx = nullptr;
 };
 
 constexpr char EST_CHANNEL_MAGIC[5] = "ESTC";
@@ -86,7 +90,7 @@ struct EST_Channel
     };
 
     EST_Device *device = nullptr;
-    
+
     int         channels = 0;
     ma_uint32   sampleRate = 0;
     std::string memoryHash = "";
@@ -95,6 +99,7 @@ struct EST_Channel
     ma_panner            panner = {};
     ma_gainer            gainer = {};
     ma_channel_converter converter = {};
+    ma_resampler         resampler = {};
 
     EST_Attribute   attributes = {};
     enum EST_STATUS status = EST_STATUS_IDLE;
@@ -103,8 +108,9 @@ struct EST_Channel
     bool            isAtEnd = false;
     bool            isRemoved = false;
 
-    std::shared_ptr<EST_ChannelResampler> pitch = {};
-    std::vector<EST_DataCallback>  callbacks;
+    std::vector<EST_DataCallback> callbacks;
+
+    EST_FX *fx = nullptr;
 };
 
 struct EST_ChannelDestructor
@@ -118,6 +124,7 @@ struct EST_ChannelDestructor
         ma_audio_buffer_uninit(&channel->buffer);
         ma_channel_converter_uninit(&channel->converter, nullptr);
         ma_gainer_uninit(&channel->gainer, nullptr);
+        ma_resampler_uninit(&channel->resampler, nullptr);
     }
 };
 
@@ -146,15 +153,15 @@ struct EST_Device
     ma_context context = {};
     ma_device  device = {};
 
-    std::vector<float>                   temporaryData;
-    std::vector<float>                   processingData;
+    std::vector<float>            temporaryData;
+    std::vector<float>            processingData;
     std::vector<EST_DataCallback> callbacks;
 
     std::vector<std::shared_ptr<EST_Channel>> channel_arrays;
-    std::vector<EST_Channel*> guest_channel_arrays;
+    std::vector<EST_Channel *>                guest_channel_arrays;
 
-    std::string                               error;
-    std::shared_ptr<std::mutex>               mutex;
+    std::string                 error;
+    std::shared_ptr<std::mutex> mutex;
 
     std::unordered_map<std::string, EST_MemoryItem> memory;
 };

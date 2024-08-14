@@ -25,8 +25,13 @@ struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
     int channels = handle->channels;
     int pcmSize = handle->pcmSize;
     int sampleRate = handle->sampleRate;
-    
-    EST_Channel* channel = ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
+
+    EST_Channel *channel = ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate, handle->fx);
+
+    channel->attributes = handle->attributes;
+    ma_resampler_set_rate_ratio(&channel->resampler, channel->attributes.samplerate / channel->sampleRate);
+    ma_panner_set_pan(&channel->panner, channel->attributes.pan);
+    ma_gainer_set_master_volume(&channel->gainer, channel->attributes.volume);
 
     if (channel) {
         handle->channelsPlaying.push_back(channel);
@@ -101,7 +106,7 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
     int sampleRate = (int)handle->sampleRate;
 
     handle->locked = true;
-    return ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate);
+    return ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate, nullptr);
 }
 
 int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyChannelsToCreated, EST_Channel **out)

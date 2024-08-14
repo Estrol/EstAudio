@@ -69,15 +69,17 @@ enum EST_DECODER_FLAGS {
 enum EST_ATTRIBUTE_FLAGS {
     EST_ATTRIB_UNKNOWN,
 
-    EST_ATTRIB_VOLUME = 0,  // Volume of the sample
-    EST_ATTRIB_RATE = 1,    // Playback rate of the sample
-    EST_ATTRIB_PITCH = 2,   // Pitch toggle
-    EST_ATTRIB_PAN = 3,     // Pan of the sample
-    EST_ATTRIB_LOOPING = 4, // Sample loop
+    EST_ATTRIB_VOLUME = 0,     // Volume of the sample
+    EST_ATTRIB_SAMPLERATE = 1, // Sample rate of the sample
+    EST_ATTRIB_PAN = 2,        // Pan of the sample
+    EST_ATTRIB_LOOPING = 3,    // Sample loop
 
-    EST_ATTRIB_ENCODER_TEMPO = 5,      // Encoder tempo control which change audio rate without pitch change (different from sampleRate)
-    EST_ATTRIB_ENCODER_PITCH = 6,      // Encoder pitch control without change the audio rate
-    EST_ATTRIB_ENCODER_SAMPLERATE = 7, // Encoder both tempo and pitch control
+    EST_ATTRIB_FX_TEMPO = 4, // FX tempo control which change audio rate without pitch change (different from sampleRate)
+    EST_ATTRIB_FX_PITCH = 5, // FX pitch control without change the audio rate
+
+    EST_ATTRIB_ENCODER_TEMPO = 6,      // Encoder tempo control which change audio rate without pitch change (different from sampleRate)
+    EST_ATTRIB_ENCODER_PITCH = 7,      // Encoder pitch control without change the audio rate
+    EST_ATTRIB_ENCODER_SAMPLERATE = 8, // Encoder both tempo and pitch control
 };
 
 enum EST_STATUS {
@@ -89,11 +91,18 @@ enum EST_STATUS {
     EST_STATUS_AT_END
 };
 
-enum EST_GET_DATA_TYPE
-{
-    EST_GET_DATA_TYPE_FFT,
-    EST_GET_DATA_TYPE_INDIVIDUAL
+enum EST_GET_DATA_TYPE {
+    EST_GET_DATA_TYPE_UNKNOWN,
+    EST_GET_DATA_TYPE_FFT,        // Get the data as FFT
+    EST_GET_DATA_TYPE_INDIVIDUAL, // Get the data as individual channel (not implemented)
+    EST_GET_DATA_TYPE_SEEK_TIME,  // Seek the pcm time for the length of the sample
 };
+
+#define EST_FFT_4096 8192
+#define EST_FFT_1024 2048
+#define EST_FFT_512 1024
+#define EST_FFT_256 512
+#define EST_FFT_128 256
 
 // Export file format, currently only support WAV
 // More format coming soon
@@ -103,28 +112,29 @@ enum EST_FILE_EXPORT {
     EST_EXPORT_OGG
 };
 
-typedef struct EST_Channel EST_Channel;
-typedef struct EST_Device EST_Device;
-typedef struct EST_Sample EST_Sample;
-typedef struct EST_Encoder EST_Encoder;
-typedef struct EST_DataCallback EST_DataCallback;
+typedef struct EST_Channel      EST_Channel;      // The audio channel, used for playing audio file in audio device.
+typedef struct EST_FX           EST_FX;           // The audio effect, used for real-time audio processing like pitch, and tempo.
+typedef struct EST_Device       EST_Device;       // The audio device, used for audio playback.
+typedef struct EST_Sample       EST_Sample;       // The audio sample, used fast audio loading.
+typedef struct EST_Encoder      EST_Encoder;      // The audio encoder, used for encoding/processing audio without device.
+typedef struct EST_DataCallback EST_DataCallback; // The data callback, used for DSP processing for both device and encoder.
 
 typedef void (*EST_DATA_CALLBACK)(EST_Channel *pHandle, void *pUserData, void *pData, int frameCount);
 typedef void (*EST_ENCODER_CALLBACK)(EST_Encoder *pHandle, void *pUserData, void *pData, int frameCount);
 
 typedef struct
 {
-    int                   sampleRate;
-    int                   channels;
-    int                   deviceIndex;
-    enum EST_DEVICE_FLAGS flags;
+    int                   sampleRate;  // The sample rate of the device
+    int                   channels;    // The number of channels of the device, if the audio channel different from the device channel, the audio will be proccessed to match the device channel
+    int                   deviceIndex; // The device index, if the device index is -1, the default device will be used
+    enum EST_DEVICE_FLAGS flags;       // The device flags, see `EST_DEVICE_FLAGS` for more information
 } est_device_info;
 
 typedef struct
 {
-    int sampleRate;
-    int channels;
-    int pcmSize;
+    int sampleRate; // The sample rate of the encoder
+    int channels;   // The number of channels of the encoder
+    int pcmSize;    // The size of the pcm data
 } est_encoder_info;
 
 enum EST_ATTRIB_VAL_TYPE {

@@ -6,6 +6,7 @@
 #include "Audio/Device.h"
 #include "Audio/Sample.h"
 #include "Audio/Channel.h"
+#include "Audio/FX.h"
 
 #if __cplusplus
 extern "C" {

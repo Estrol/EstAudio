@@ -6,6 +6,10 @@
 #include <vector>
 #include <iostream>
 
+#include <windows.h>
+
+#define _FFT_TEST
+
 int main()
 {
     EST_Device *dev = EST_DeviceInit(44100, EST_DEVICE_FLAGS::EST_DEVICE_STEREO);
@@ -14,43 +18,135 @@ int main()
         return 1;
     }
 
-    EST_Encoder* encoder = EST_EncoderLoad("F:\\test.ogg", nullptr, (EST_DECODER_FLAGS)0);
-    if (!encoder) {
-        printf("Failed to load encoder %s\n", EST_ErrorGetMessage());
-        return 1;
-    }
-
-    est_attribute_value value = {
-        EST_ATTRIB_ENCODER_TEMPO,
-        EST_ATTRIB_VAL_FLOAT,
-        1.5f
-    };
-
-    EST_EncoderSetAttribute(encoder, &value);
-    EST_EncoderRender(encoder);
-
-    EST_Sample *sample = EST_SampleLoadFromEncoder(encoder);
+#ifdef _NORMAL_TEST
+    EST_Sample *sample = EST_SampleLoad("F:\\test.ogg");
     if (!sample) {
         printf("Failed to load sample %s\n", EST_ErrorGetMessage());
         return 1;
     }
+    est_attribute_value value;
+    value.attribute = EST_ATTRIB_SAMPLERATE;
+    value.fValue = 44100 * 1.5f;
+    value.type = EST_ATTRIB_VAL_FLOAT;
 
-    EST_EncoderFree(encoder);
+    EST_SampleSetAttribute(sample, &value);
 
     EST_Channel *channel = EST_SampleGetChannel(dev, sample);
     if (!channel) {
-        printf("Failed to get channel %s\n", EST_ErrorGetMessage());
+        printf("Failed to create channel %s\n", EST_ErrorGetMessage());
         return 1;
     }
 
-    EST_ChannelSeekPosition(channel, EST_CHANNEL_POSITION_TIME, 15000);
+    EST_ChannelPlay(channel, EST_FALSE);
+
+    while (EST_ChannelIsPlaying(channel)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    EST_ChannelFree(channel);
+    EST_SampleFree(sample);
+#endif
+
+#ifdef _FX_TEST
+    EST_FX *fx = EST_FXLoad("F:\\test.ogg");
+    if (!fx) {
+        printf("Failed to load fx %s\n", EST_ErrorGetMessage());
+        return 1;
+    }
+
+    EST_Channel *channel = EST_FXCreateChannel(fx, dev);
+    if (!channel) {
+        printf("Failed to create channel %s\n", EST_ErrorGetMessage());
+        return 1;
+    }
 
     EST_ChannelPlay(channel, EST_FALSE);
 
-    std::this_thread::sleep_for(std::chrono::seconds(15));
-    
-    EST_SampleFree(sample);
-    EST_DeviceFree(dev);
+    est_attribute_value value;
 
+    bool isPlaying = true;
+    while (isPlaying) {
+        char c = (char)getchar();
+
+        switch (c) {
+            case 'q':
+                isPlaying = false;
+                break;
+
+            case 'w':
+            {
+                value.attribute = EST_ATTRIB_FX_PITCH;
+                EST_FXGetAttribute(fx, &value);
+
+                value.fValue = value.fValue == 1.5f ? 1.0f : 1.5f;
+                value.type = EST_ATTRIB_VAL_FLOAT;
+                EST_FXSetAttribute(fx, &value);
+                break;
+            }
+
+            case 'e':
+            {
+                value.attribute = EST_ATTRIB_FX_TEMPO;
+                EST_FXGetAttribute(fx, &value);
+
+                value.fValue = value.fValue == 1.5f ? 1.0f : 1.5f;
+                value.type = EST_ATTRIB_VAL_FLOAT;
+                EST_FXSetAttribute(fx, &value);
+                break;
+            }
+
+            case 'd':
+            {
+                value.attribute = EST_ATTRIB_FX_TEMPO;
+                EST_FXGetAttribute(fx, &value);
+
+                value.fValue = value.fValue == 0.5f ? 1.0f : 0.5f;
+                value.type = EST_ATTRIB_VAL_FLOAT;
+                EST_FXSetAttribute(fx, &value);
+                break;
+            }
+
+            case 'r':
+            {
+                EST_ChannelSeekPosition(channel, EST_CHANNEL_POSITION_PERCENT, 0);
+                break;
+            }
+
+            case 't':
+            {
+                EST_ChannelSeekPosition(channel, EST_CHANNEL_POSITION_PERCENT, 0.9f);
+                break;
+            }
+
+            case 'y':
+            {
+                EST_ChannelPlay(channel, EST_TRUE);
+                break;
+            }
+        }
+    }
+
+    EST_ChannelFree(channel);
+    EST_FXFree(fx);
+#endif
+
+#ifdef _FFT_TEST
+    EST_Channel *ch = EST_ChannelLoad(dev, "F:\\test.ogg");
+    if (!ch) {
+        printf("Failed to load channel %s\n", EST_ErrorGetMessage());
+        return 1;
+    }
+
+    float fft[1024];
+    int   received = EST_ChannelGetData(ch, fft, EST_FFT_1024, (EST_GET_DATA_TYPE)(EST_GET_DATA_TYPE_FFT));
+    if (received < 0) {
+        printf("Failed to get data %s\n", EST_ErrorGetMessage());
+        return 1;
+    }
+
+    EST_ChannelFree(ch);
+#endif
+
+    EST_DeviceFree(dev);
     return 0;
 }

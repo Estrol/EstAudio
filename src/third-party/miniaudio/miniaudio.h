@@ -52472,7 +52472,7 @@ MA_API ma_result ma_resampler_get_required_input_frame_count(const ma_resampler*
     if (pResampler == NULL) {
         return MA_INVALID_ARGS;
     }
-
+    
     if (pResampler->pBackendVTable == NULL || pResampler->pBackendVTable->onGetRequiredInputFrameCount == NULL) {
         return MA_NOT_IMPLEMENTED;
     }
