@@ -1,9 +1,14 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "Internal.h"
 #include "Channel/ChannelInternal.h"
 
 namespace {
     constexpr int kMaxChannels = 2;
-} // namespace
+}
 
 static ma_uint64 read_pcm_data(EST_Channel *channel, float *output, ma_uint64 frameCount)
 {
@@ -19,21 +24,36 @@ static ma_uint64 read_pcm_data(EST_Channel *channel, float *output, ma_uint64 fr
         ma_uint64 targetThisIteration = frameCount;
 
         if (fx->attributes.tempo != 1.0f) {
-            ma_resampler_get_required_input_frame_count(&fx->resampler, frameCount, &targetToReadThisIteration);
+            ma_resampler_get_required_input_frame_count(
+                &fx->resampler,
+                frameCount,
+                &targetToReadThisIteration);
         }
 
         ma_uint64 availableFrames = 0;
         ma_audio_buffer_get_available_frames(&channel->buffer, &availableFrames);
         if (availableFrames > 0) {
-            targetToReadThisIteration = ma_audio_buffer_read_pcm_frames(&channel->buffer, &temp[0], targetToReadThisIteration, MA_FALSE);
+            targetToReadThisIteration = ma_audio_buffer_read_pcm_frames(
+                &channel->buffer,
+                &temp[0],
+                targetToReadThisIteration,
+                MA_FALSE);
 
-            fx->framesAvailable += (int)targetThisIteration;
+            if (targetToReadThisIteration < targetToReadThisIteration) {
+                fx->framesAvailable += fx->processor->outputLatency();
+            } else {
+                fx->framesAvailable += static_cast<int>(targetThisIteration);
+            }
         }
 
         if (fx->framesAvailable > 0) {
-            fx->processor->process(&temp[0], (int)targetToReadThisIteration, &temp2[0], (int)targetThisIteration);
+            fx->processor->process(
+                &temp[0],
+                static_cast<int>(targetToReadThisIteration),
+                &temp2[0],
+                static_cast<int>(targetThisIteration));
 
-            fx->framesAvailable -= (int)targetThisIteration;
+            fx->framesAvailable -= static_cast<int>(targetThisIteration);
 
             if (fx->framesAvailable < 0) {
                 targetThisIteration += fx->framesAvailable;
@@ -84,23 +104,39 @@ static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *p
         }
 
         if ((ma_uint32)channel->attributes.samplerate != channel->buffer.ref.sampleRate) {
-            result = ma_resampler_get_required_input_frame_count(&channel->resampler, framesToReadThisIteration, &framesToReadThisIteration);
+            result = ma_resampler_get_required_input_frame_count(
+                &channel->resampler,
+                framesToReadThisIteration,
+                &framesToReadThisIteration);
+
             if (result != MA_SUCCESS) {
                 break;
             }
         }
 
-        framesReadThisIteration = read_pcm_data(channel, &temp[0], framesToReadThisIteration);
+        framesReadThisIteration = read_pcm_data(
+            channel,
+            &temp[0],
+            framesToReadThisIteration);
 
         if (channel->channels != device->channels) {
-            ma_channel_converter_process_pcm_frames(&channel->converter, &temp2[0], &temp[0], framesReadThisIteration);
+            ma_channel_converter_process_pcm_frames(
+                &channel->converter,
+                &temp2[0],
+                &temp[0],
+                framesReadThisIteration);
 
             std::fill(temp.begin(), temp.begin() + byteSize, 0.0f);
             std::copy(&temp2[0], &temp2[0] + framesReadThisIteration * device->channels, &temp[0]);
         }
 
         if ((ma_uint32)channel->attributes.samplerate != channel->buffer.ref.sampleRate) {
-            result = ma_resampler_process_pcm_frames(&channel->resampler, &temp[0], &framesReadThisIteration, &temp2[0], &expectedToReadThisIteration);
+            result = ma_resampler_process_pcm_frames(
+                &channel->resampler,
+                &temp[0],
+                &framesReadThisIteration,
+                &temp2[0],
+                &expectedToReadThisIteration);
 
             if (result != MA_SUCCESS) {
                 break;
@@ -111,24 +147,34 @@ static ma_uint32 data_mix_pcm(EST_Device *device, EST_Channel *channel, float *p
             std::copy(temp2.begin(), temp2.begin() + framesReadThisIteration * channels, temp.begin());
         }
 
-        result = ma_panner_process_pcm_frames(&channel->panner, &temp2[0], &temp[0], framesReadThisIteration);
+        result = ma_panner_process_pcm_frames(
+            &channel->panner,
+            &temp2[0],
+            &temp[0],
+            framesReadThisIteration);
+
         if (result != MA_SUCCESS) {
             break;
         }
 
-        result = ma_gainer_process_pcm_frames(&channel->gainer, &temp[0], &temp2[0], framesReadThisIteration);
+        result = ma_gainer_process_pcm_frames(
+            &channel->gainer,
+            &temp[0],
+            &temp2[0],
+            framesReadThisIteration);
+
         if (result != MA_SUCCESS) {
             break;
         }
 
         /* Mix the frames together. */
         for (iSample = 0; iSample < framesReadThisIteration * channels; ++iSample) {
-            pOutput[totalFramesRead * channels + iSample] += temp[iSample]; // std::clamp(temp[iSample], -1.0f, 1.0f);
+            pOutput[totalFramesRead * channels + iSample] += temp[iSample];
         }
 
-        totalFramesRead += (ma_uint32)framesReadThisIteration;
+        totalFramesRead += static_cast<ma_uint32>(framesReadThisIteration);
 
-        if (framesReadThisIteration < (ma_uint32)framesToReadThisIteration) {
+        if (framesReadThisIteration < static_cast<ma_uint32>(framesToReadThisIteration)) {
             break; /* Reached EOF. */
         }
     }
@@ -158,7 +204,7 @@ void erase_if_map(ContainerT &items, const PredicateT &predicate)
 }
 
 template <typename ContainerT, typename PredicateT>
-void erase_if(ContainerT &items, const PredicateT &predicate)
+void erase_if(const ContainerT &items, const PredicateT &predicate)
 {
     auto it = std::remove_if(items.begin(), items.end(), predicate);
     items.erase(it, items.end());
@@ -342,7 +388,7 @@ EST_RESULT EST_GetInfo(EST_Device *device, est_device_info *info)
         return EST_ERROR_INVALID_STATE;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)device;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(device);
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -363,7 +409,7 @@ EST_RESULT EST_DeviceFree(EST_Device *device)
         return EST_ERROR_INVALID_STATE;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)device;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(device);
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -390,7 +436,7 @@ EST_DataCallback *EST_DeviceAddCallback(EST_Device *device, EST_DATA_CALLBACK ca
         return nullptr;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)device;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(device);
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return nullptr;
@@ -411,13 +457,13 @@ EST_RESULT EST_DeviceRemoveCallback(EST_Device *device, EST_DataCallback *callba
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)device;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(device);
     if (unknown->type != EST_UNKNOWN_DEVICE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    unknown = (EST_Unknown *)callback;
+    unknown = reinterpret_cast<EST_Unknown *>(callback);
     if (unknown->type != EST_UNKNOWN_DATA_CALLBACK) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;

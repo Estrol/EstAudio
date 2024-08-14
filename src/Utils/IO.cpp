@@ -1,5 +1,12 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "IO.h"
 #include "MD5.h"
+
+#include <vector>
 
 std::vector<char> ReadFile(const std::filesystem::path &path)
 {
@@ -41,7 +48,7 @@ std::string HashFile(const std::filesystem::path &path)
 
     char buffer[1024];
     while (file.read(buffer, sizeof(buffer))) {
-        md5Update(&ctx, (uint8_t *)buffer, file.gcount());
+        md5Update(&ctx, reinterpret_cast<uint8_t *>(buffer), file.gcount());
     }
 
     md5Finalize(&ctx);
@@ -61,7 +68,7 @@ std::string HashBuffer(const void *data, size_t size)
 {
     MD5Context ctx;
     md5Init(&ctx);
-    md5Update(&ctx, (uint8_t *)data, size);
+    md5Update(&ctx, reinterpret_cast<const uint8_t *>(data), size);
     md5Finalize(&ctx);
 
     char result[16];

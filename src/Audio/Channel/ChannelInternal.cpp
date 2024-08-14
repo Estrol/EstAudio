@@ -1,6 +1,14 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "ChannelInternal.h"
-#include <kissfft/kiss_fft.h>
+
+#include <string>
+#include <memory>
 #include <kissfft/kiss_fftr.h>
+#include <kissfft/kiss_fft.h>
 
 void ChannelInternalFree(EST_Channel *channel)
 {
@@ -14,7 +22,14 @@ void ChannelInternalFree(EST_Channel *channel)
     ma_resampler_uninit(&channel->resampler, nullptr);
 }
 
-struct EST_Channel *Init(EST_Device *device, std::shared_ptr<EST_Channel> channel, float *data_pointer, int channels, int pcmSize, int sampleRate, EST_FX *fx)
+struct EST_Channel *Init(
+    EST_Device                  *device,
+    std::shared_ptr<EST_Channel> channel,
+    float                       *data_pointer,
+    int                          channels,
+    int                          pcmSize,
+    int                          sampleRate,
+    EST_FX                      *fx)
 {
     ma_audio_buffer_config config = ma_audio_buffer_config_init(
         ma_format_f32,
@@ -54,12 +69,12 @@ struct EST_Channel *Init(EST_Device *device, std::shared_ptr<EST_Channel> channe
     }
 
     ma_channel_converter_config chConfig = ma_channel_converter_config_init(
-        ma_format_f32,                // Sample format
-        channels,                     // Input channels
-        NULL,                         // Input channel map
-        device->channels,             // Output channels
-        NULL,                         // Output channel map
-        ma_channel_mix_mode_default); // The mixing algorithm to use when combining channels.
+        ma_format_f32,
+        channels,
+        NULL,
+        device->channels,
+        NULL,
+        ma_channel_mix_mode_default);
 
     if (ma_channel_converter_init(&chConfig, nullptr, &channel->converter)) {
         EST_ErrorSetMessage("Failed to initialize channel converter");
@@ -103,7 +118,13 @@ struct EST_Channel *Init(EST_Device *device, std::shared_ptr<EST_Channel> channe
     return channel.get();
 }
 
-struct EST_Channel *ChannelInternalInit(EST_Device *device, std::string hash, int channels, int pcmSize, int sampleRate, EST_FX *fx)
+struct EST_Channel *ChannelInternalInit(
+    EST_Device *device,
+    std::string hash,
+    int         channels,
+    int         pcmSize,
+    int         sampleRate,
+    EST_FX     *fx)
 {
     auto channel = std::make_shared<EST_Channel>();
     if (!channel) {
@@ -132,7 +153,13 @@ struct EST_Channel *ChannelInternalInit(EST_Device *device, std::string hash, in
     return Init(device, channel, data_pointer, channels, pcmSize, sampleRate, fx);
 }
 
-struct EST_Channel *ChannelInternalInitMemory(EST_Device *device, float *data_pointer, int channels, int pcmSize, int sampleRate, EST_FX *fx)
+struct EST_Channel *ChannelInternalInitMemory(
+    EST_Device *device,
+    float      *data_pointer,
+    int         channels,
+    int         pcmSize,
+    int         sampleRate,
+    EST_FX     *fx)
 {
     auto channel = std::make_shared<EST_Channel>();
     if (!channel) {
@@ -212,7 +239,7 @@ int ChannelInternalFFTGetData(EST_Channel *channel, float *data, int size, bool 
 
     kiss_fftr(cfg, bufData2, out);
 
-    float scaling = 1.0f / (float)fft_size;
+    float scaling = 1.0f / static_cast<float>(fft_size);
     if (individual) {
         for (int i = 0; i < fft_size * 2; i += 2) {
             data[i] = 2.0f * sqrt(out[i].r * out[i].r) * scaling;
@@ -228,7 +255,7 @@ int ChannelInternalFFTGetData(EST_Channel *channel, float *data, int size, bool 
     delete[] out;
     kiss_fftr_free(cfg);
 
-    return (int)fft_size;
+    return static_cast<int>(fft_size);
 }
 
 int ChannelInternalGetData(EST_Channel *channel, float *data, int size)
@@ -266,7 +293,7 @@ int ChannelInternalGetData(EST_Channel *channel, float *data, int size)
     const float *bufData = reinterpret_cast<const float *>(channel->buffer.ref.pData);
     memcpy(data, bufData + index_pos, to_read * sizeof(float));
 
-    return (int)to_read;
+    return static_cast<int>(to_read);
 }
 
 EST_RESULT ChannelInternalSetPositionMS(EST_Channel *channel, float ms)

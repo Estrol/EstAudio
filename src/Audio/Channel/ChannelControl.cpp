@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "../Internal.h"
 
 bool IsChannelOnThisDevice(EST_Device *device, EST_Channel *channel)
@@ -10,9 +15,13 @@ bool IsChannelOnThisDevice(EST_Device *device, EST_Channel *channel)
         return false;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)channel;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(channel);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return false;
     }
@@ -32,9 +41,13 @@ EST_RESULT EST_ChannelPlay(EST_Channel *handle, EST_BOOL restart)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -67,9 +80,13 @@ EST_RESULT EST_ChannelPause(EST_Channel *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -86,7 +103,7 @@ EST_RESULT EST_ChannelStop(EST_Channel *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -104,9 +121,13 @@ EST_BOOL EST_ChannelIsPlaying(EST_Channel *handle)
         return EST_FALSE;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_FALSE;
     }
@@ -120,9 +141,13 @@ EST_RESULT EST_ChannelFree(EST_Channel *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -142,7 +167,7 @@ EST_DataCallback *EST_ChannelAddCallback(EST_Channel *handle, EST_DATA_CALLBACK 
         return nullptr;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return nullptr;
@@ -163,13 +188,13 @@ EST_RESULT EST_ChannelRemoveCallback(EST_Channel *handle, EST_DataCallback *call
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    unknown = (EST_Unknown *)callback;
+    unknown = reinterpret_cast<EST_Unknown *>(callback);
     if (unknown->type != EST_UNKNOWN_DATA_CALLBACK) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -196,16 +221,24 @@ static void SeekFX(EST_Channel *handle)
     std::vector<float> buffer(framesRequiredForInputBuffer * handle->channels, 0.0f);
 
     // Read and seek the buffer
-    framesRequiredForInputBuffer = (int)ma_audio_buffer_read_pcm_frames(&handle->buffer, &buffer[0], framesRequiredForInputBuffer, MA_FALSE);
+    framesRequiredForInputBuffer = static_cast<int>(ma_audio_buffer_read_pcm_frames(
+        &handle->buffer,
+        &buffer[0],
+        framesRequiredForInputBuffer,
+        MA_FALSE));
+
     if (framesRequiredForInputBuffer == 0) {
         return;
     }
 
     // Initialize the dummy buffer
     std::vector<float> temp(framesRequiredForInputBuffer * handle->channels, 0.0f);
-    fx->processor->process(buffer, framesRequiredForInputBuffer, temp, framesRequiredForInputBuffer);
+    fx->processor->process(
+        buffer,
+        framesRequiredForInputBuffer,
+        temp,
+        framesRequiredForInputBuffer);
 
-    fx->framesAvailable = framesRequiredForInputBuffer;
     fx->lock = false;
 }
 
@@ -215,7 +248,7 @@ EST_RESULT EST_ChannelSeekPosition(EST_Channel *handle, EST_CHANNEL_POSITION_TYP
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
         EST_ErrorSetMessage("Invalid pointer magic");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -269,7 +302,7 @@ EST_RESULT EST_ChannelSeekPosition(EST_Channel *handle, EST_CHANNEL_POSITION_TYP
                 return EST_ERROR_INVALID_ARGUMENT;
             }
 
-            ma_uint64 framePos = static_cast<ma_uint64>(position * ((float)handle->sampleRate / 1000.0f));
+            ma_uint64 framePos = static_cast<ma_uint64>(position * (static_cast<float>(handle->sampleRate) / 1000.0f));
             ma_audio_buffer_seek_to_pcm_frame(&handle->buffer, framePos);
 
             if (handle->fx != nullptr) {

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "EncoderInternal.h"
 
 EST_RESULT EST_EncoderSeek(EST_Encoder *handle, int index)
@@ -7,7 +12,7 @@ EST_RESULT EST_EncoderSeek(EST_Encoder *handle, int index)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -24,7 +29,7 @@ EST_RESULT EST_EncoderSeek(EST_Encoder *handle, int index)
 
         std::vector<float> convertedData(latency * handle->channels);
 
-        if (handle->channels != (int)handle->decoder.outputChannels) {
+        if (handle->channels != static_cast<int>(handle->decoder.outputChannels)) {
             std::vector<float> encoderData(latency * handle->decoder.outputChannels);
 
             ma_uint64 ma_readed = 0;
@@ -54,9 +59,13 @@ EST_RESULT EST_EncoderRender(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -76,7 +85,6 @@ EST_RESULT EST_EncoderRender(EST_Encoder *handle)
         static_cast<float>(handle->decoder.outputSampleRate));
     handle->numOfPcmProcessed = 0;
 
-    // int                bufferSize = static_cast<int>(::floor(targetRead * handle->decoder.outputChannels * handle->rate));
     std::vector<float> buffer(4095);
     std::vector<float> temp(4095);
 
@@ -214,7 +222,7 @@ EST_RESULT EST_EncoderGetData(EST_Encoder *handle, void *data, int *size)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -244,7 +252,7 @@ EST_RESULT EST_EncoderFlushData(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -263,7 +271,7 @@ EST_RESULT EST_EncoderGetAvailableDataSize(EST_Encoder *handle, int *size)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;

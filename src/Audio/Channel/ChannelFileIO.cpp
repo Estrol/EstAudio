@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "ChannelInternal.h"
 #include "../../Utils/IO.h"
 
@@ -78,14 +83,14 @@ struct EST_Channel *EST_ChannelLoad(EST_Device *device, const char *filename)
 
     EST_MemoryItem item;
     item.data = buffer;
-    item.pcmSize = (int)pcmSize;
+    item.pcmSize = static_cast<int>(pcmSize);
     item.channels = channels;
     item.sampleRate = sampleRate;
     item.useCount = 1;
 
     device->memory[hash] = std::move(item);
 
-    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate, nullptr);
+    return ChannelInternalInit(device, hash, item.channels, item.pcmSize, item.sampleRate, nullptr);
 }
 
 struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *data, size_t size)
@@ -170,14 +175,14 @@ struct EST_Channel *EST_ChannelLoadFromMemory(EST_Device *device, const void *da
 
     EST_MemoryItem item;
     item.data = buffer;
-    item.pcmSize = (int)pcmSize;
+    item.pcmSize = static_cast<int>(pcmSize);
     item.channels = channels;
     item.sampleRate = sampleRate;
     item.useCount = 1;
 
     device->memory[hash] = std::move(item);
 
-    return ChannelInternalInit(device, hash, channels, (int)pcmSize, sampleRate, nullptr);
+    return ChannelInternalInit(device, hash, item.channels, item.pcmSize, item.sampleRate, nullptr);
 }
 
 inline bool IsFlagPresent(int flags, int flag)

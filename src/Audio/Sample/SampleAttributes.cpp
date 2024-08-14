@@ -1,10 +1,15 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "../Internal.h"
 #include "../../Utils/IO.h"
 #include "../../Encoder/EncoderInternal.h"
 
 EST_RESULT EST_SampleSetAttribute(EST_Sample *sample, est_attribute_value *value)
 {
-    EST_Unknown *unknown = (EST_Unknown *)sample;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(sample);
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -86,7 +91,7 @@ EST_RESULT EST_SampleSetAttribute(EST_Sample *sample, est_attribute_value *value
 
 EST_RESULT EST_SampleGetAttribute(EST_Sample *sample, est_attribute_value *value)
 {
-    EST_Unknown *unknown = (EST_Unknown *)sample;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(sample);
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;

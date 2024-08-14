@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "EncoderInternal.h"
 
 namespace {
@@ -35,12 +40,12 @@ EST_Encoder *InternalInit(EST_Encoder *sample, ma_format format, int channels, i
     }
 
     ma_channel_converter_config chConfig = ma_channel_converter_config_init(
-        format,                       // Sample format
-        channels,                     // Input channels
-        NULL,                         // Input channel map
-        sample->channels,             // Output channels
-        NULL,                         // Output channel map
-        ma_channel_mix_mode_default); // The mixing algorithm to use when combining channels.
+        format,
+        channels,
+        NULL,
+        sample->channels,
+        NULL,
+        ma_channel_mix_mode_default);
 
     if (ma_channel_converter_init(&chConfig, nullptr, &sample->converter)) {
         EST_ErrorSetMessage("Failed to initialize channel converter");
@@ -93,7 +98,11 @@ EST_Encoder *EST_EncoderLoad(const char *path, EST_ENCODER_CALLBACK callback, en
                         instance->decoder.outputSampleRate);
 }
 
-EST_Encoder *EST_EncoderLoadMemory(const void *data, int size, EST_ENCODER_CALLBACK callback, enum EST_DECODER_FLAGS flags)
+EST_Encoder *EST_EncoderLoadMemory(
+    const void            *data,
+    int                    size,
+    EST_ENCODER_CALLBACK   callback,
+    enum EST_DECODER_FLAGS flags)
 {
     if (!data || size == 0) {
         EST_ErrorSetMessage("Path is not defined");
@@ -118,7 +127,6 @@ EST_Encoder *EST_EncoderLoadMemory(const void *data, int size, EST_ENCODER_CALLB
 
     auto result = ma_decoder_init_memory(data, size, &config, &instance->decoder);
     if (result != MA_SUCCESS) {
-
         delete instance;
         return nullptr;
     }
@@ -142,9 +150,13 @@ EST_RESULT EST_EncoderFree(EST_Encoder *handle)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }

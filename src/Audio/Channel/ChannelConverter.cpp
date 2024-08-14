@@ -1,8 +1,12 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
+#include <format>
 #include "ChannelInternal.h"
 #include "../../Encoder/EncoderInternal.h"
 #include "../../Utils/IO.h"
-#include <format>
-
 struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
 {
     if (!device) {
@@ -15,9 +19,12 @@ struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
         return nullptr;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_SAMPLE));
+        auto msg = std::format("Invalid handle: {} (Expect: {})",
+                               EST_UnknownTypeToString(unknown->type),
+                               EST_UnknownTypeToString(EST_UNKNOWN_SAMPLE));
+
         EST_ErrorSetMessage(msg.c_str());
         return nullptr;
     }
@@ -26,12 +33,26 @@ struct EST_Channel *EST_SampleGetChannel(EST_Device *device, EST_Sample *handle)
     int pcmSize = handle->pcmSize;
     int sampleRate = handle->sampleRate;
 
-    EST_Channel *channel = ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate, handle->fx);
+    EST_Channel *channel = ChannelInternalInitMemory(
+        device,
+        &handle->data[0],
+        channels,
+        pcmSize,
+        sampleRate,
+        handle->fx);
 
     channel->attributes = handle->attributes;
-    ma_resampler_set_rate_ratio(&channel->resampler, channel->attributes.samplerate / channel->sampleRate);
-    ma_panner_set_pan(&channel->panner, channel->attributes.pan);
-    ma_gainer_set_master_volume(&channel->gainer, channel->attributes.volume);
+    ma_resampler_set_rate_ratio(
+        &channel->resampler,
+        channel->attributes.samplerate / channel->sampleRate);
+
+    ma_panner_set_pan(
+        &channel->panner,
+        channel->attributes.pan);
+
+    ma_gainer_set_master_volume(
+        &channel->gainer,
+        channel->attributes.volume);
 
     if (channel) {
         handle->channelsPlaying.push_back(channel);
@@ -52,9 +73,13 @@ int EST_SampleGetChannels(EST_Device *device, EST_Sample *handle, int howManyCha
         return 0;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_SAMPLE));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_SAMPLE));
+
         EST_ErrorSetMessage(msg.c_str());
         return 0;
     }
@@ -86,9 +111,13 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
         return nullptr;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return nullptr;
     }
@@ -103,7 +132,7 @@ struct EST_Channel *EST_EncoderGetChannel(EST_Device *device, EST_Encoder *handl
 
     int channels = handle->channels;
     int pcmSize = handle->numOfPcmProcessed;
-    int sampleRate = (int)handle->sampleRate;
+    int sampleRate = static_cast<int>(handle->sampleRate);
 
     handle->locked = true;
     return ChannelInternalInitMemory(device, &handle->data[0], channels, pcmSize, sampleRate, nullptr);
@@ -121,9 +150,13 @@ int EST_EncoderGetChannels(EST_Device *device, EST_Encoder *handle, int howManyC
         return 0;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_CHANNEL) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_CHANNEL));
+
         EST_ErrorSetMessage(msg.c_str());
         return 0;
     }

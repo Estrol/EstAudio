@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "EstAudio.h"
 #include "EstEncoder.h"
 #include <stdio.h>

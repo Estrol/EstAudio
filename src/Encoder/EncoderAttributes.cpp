@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "EncoderInternal.h"
 
 EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, est_attribute_value *value)
@@ -7,9 +12,13 @@ EST_RESULT EST_EncoderSetAttribute(EST_Encoder *handle, est_attribute_value *val
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -98,9 +107,13 @@ EST_RESULT EST_EncoderGetAttribute(EST_Encoder *handle, est_attribute_value *val
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -153,9 +166,13 @@ EST_RESULT EST_EncoderGetInfo(EST_Encoder *handle, est_encoder_info *info)
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }

@@ -7,8 +7,7 @@ include_directories("./include")
 
 file(GLOB_RECURSE HEADERS "./include/*.h" "./include/*.hpp")
 
-set(SOURCES 
-    "src/Audio/Device.cpp"
+set(SOURCES "src/Audio/Device.cpp"
     "src/Audio/Error.cpp"
     "src/Audio/Sample/SampleAttributes.cpp"
     "src/Audio/Sample/SampleFileIO.cpp"
@@ -25,15 +24,16 @@ set(SOURCES
     "src/Encoder/EncoderExport.cpp"
     "src/third-party/miniaudio/miniaudio-decoders.cpp"
     "src/third-party-impl/impl.cpp"
-
     "src/Utils/IO.cpp"
     "src/Utils/MD5.cpp"
-    "src/Unknown.cpp"
-)
+    "src/Unknown.cpp")
 
-if (WIN32)
+# Loop for every source file and exec cpplint
+
+
+if(WIN32)
     set(SOURCES "${SOURCES}" "src/Win32/resource.rc")
-endif() 
+endif()
 
 add_compile_definitions("EST_EXPORT")
 if(MSVC)
@@ -52,10 +52,6 @@ find_package(OpusFile CONFIG REQUIRED)
 find_package(Vorbis CONFIG REQUIRED)
 find_package(kissfft CONFIG REQUIRED)
 
-target_link_libraries(EstAudio PRIVATE 
-    OpusFile::opusfile
-    Vorbis::vorbisfile 
-    kissfft::kissfft-float
-)
+target_link_libraries(EstAudio PRIVATE OpusFile::opusfile Vorbis::vorbisfile kissfft::kissfft-float)
 
 add_subdirectory(test)

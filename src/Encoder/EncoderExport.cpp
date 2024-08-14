@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "EncoderInternal.h"
 #include <vorbis/vorbisenc.h>
 #include <vorbis/vorbisfile.h>
@@ -5,7 +10,7 @@
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable : 4996) // Disable warning for fopen
+#pragma warning(disable : 4996)
 #endif
 
 EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type, char *filePath)
@@ -15,9 +20,13 @@ EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type,
         return EST_ERROR_INVALID_ARGUMENT;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return EST_ERROR_INVALID_ARGUMENT;
     }
@@ -59,8 +68,7 @@ EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type,
         }
 
         ma_encoder_uninit(&encoder);
-    } else if (type == EST_EXPORT_OGG)
-    {
+    } else if (type == EST_EXPORT_OGG) {
         if (handle->channels != 1 && handle->channels != 2) {
             EST_ErrorSetMessage("EST_EXPORT_OGG only support mono or stereo channel");
             return EST_ERROR_ENCODER_INVALID_OPERATION;
@@ -85,7 +93,7 @@ EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type,
         vorbis_comment_add_tag(&vc, "ENCODER", "EST_Encoder::Export::libvorbis");
 
         vorbis_dsp_state vd;
-        vorbis_block vb;  
+        vorbis_block     vb;
 
         vorbis_analysis_init(&vd, &vi);
         vorbis_block_init(&vd, &vb);
@@ -114,8 +122,8 @@ EST_RESULT EST_EncoderExportFile(EST_Encoder *handle, enum EST_FILE_EXPORT type,
 
                 if (channelSize == 2) {
                     if (i + j < handle->numOfPcmProcessed) {
-                        buffer[0][j] = handle->data[2 * (i + j)];       // Left channel
-                        buffer[1][j] = handle->data[2 * (i + j) + 1];   // Right channel
+                        buffer[0][j] = handle->data[2 * (i + j)];
+                        buffer[1][j] = handle->data[2 * (i + j) + 1];
                     } else {
                         buffer[0][j] = 0.f;
                         buffer[1][j] = 0.f;

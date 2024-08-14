@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "Unknown.h"
 
 const char *EST_UnknownTypeToString(EST_UnknownType type)

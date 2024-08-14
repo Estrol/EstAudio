@@ -1,11 +1,14 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "../Internal.h"
 #include "../../Utils/IO.h"
 #include "../../Encoder/EncoderInternal.h"
-
-#include "../../Utils/IO.h"
 #include "../Channel/ChannelInternal.h"
 
-EST_FX *FXInternalLoad(std::vector<float> &data, int channels, int sampleRate, int pcmSize)
+EST_FX *FXInternalLoad(const std::vector<float> &data, int channels, int sampleRate, int pcmSize)
 {
     EST_FX *fx = new EST_FX();
     if (!fx) {
@@ -76,7 +79,7 @@ EST_FX *EST_FXLoad(const char *path)
             }
 
             if (framesRead <= 0) {
-                break; // let it break here
+                break;
             }
         }
 
@@ -86,7 +89,11 @@ EST_FX *EST_FXLoad(const char *path)
 
     ma_decoder_uninit(&decoder);
 
-    return FXInternalLoad(pcmData, (int)channels, (int)sampleRate, (int)pcmSize);
+    return FXInternalLoad(
+        pcmData,
+        static_cast<int>(channels),
+        static_cast<int>(sampleRate),
+        static_cast<int>(pcmSize));
 }
 
 EST_FX *EST_FXLoadFromMemory(const void *data, size_t size)
@@ -139,7 +146,7 @@ EST_FX *EST_FXLoadFromMemory(const void *data, size_t size)
             }
 
             if (framesRead <= 0) {
-                break; // let it break here
+                break;
             }
         }
 
@@ -149,7 +156,11 @@ EST_FX *EST_FXLoadFromMemory(const void *data, size_t size)
 
     ma_decoder_uninit(&decoder);
 
-    return FXInternalLoad(pcmData, (int)channels, (int)sampleRate, (int)pcmSize);
+    return FXInternalLoad(
+        pcmData,
+        static_cast<int>(channels),
+        static_cast<int>(sampleRate),
+        static_cast<int>(pcmSize));
 }
 
 void EST_FXFree(EST_FX *fx)
@@ -178,8 +189,19 @@ EST_Sample *EST_FXCreateSample(EST_FX *fx)
     sample->sampleRate = fx->sampleRate;
     sample->data = fx->data;
     sample->pcmSize = fx->pcmSize;
-    sample->fx = fx;
 
+    EST_FX *copy = new EST_FX();
+    if (!copy) {
+        EST_ErrorSetMessage("EST_FXCreateSample: Failed to allocate memory for EST_FX");
+        return nullptr;
+    }
+
+    copy->channels = fx->channels;
+    copy->sampleRate = fx->sampleRate;
+    copy->pcmSize = fx->pcmSize;
+    copy->data = fx->data;
+
+    sample->fx = copy;
     return sample;
 }
 

@@ -1,8 +1,13 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "Internal.h"
 
 namespace {
     static std::string s_errorMessage;
-} // namespace
+}
 
 const char *EST_ErrorGetMessage()
 {

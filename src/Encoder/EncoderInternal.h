@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #ifndef __ENCODER_INTERNAL_H_
 #define __ENCODER_INTERNAL_H_
 

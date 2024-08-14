@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #ifndef __UNKNOWN_H_
 #define __UNKNOWN_H_
 

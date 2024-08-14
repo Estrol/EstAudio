@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2024 Estrol Mendex.
+ * See the LICENSE file for copying permission.
+ */
+
 #include "../Internal.h"
 #include "../../Utils/IO.h"
 #include "../../Encoder/EncoderInternal.h"
@@ -57,22 +62,22 @@ EST_Sample *EST_SampleLoad(const char *filename)
                 EST_ErrorSetMessage("EST_SampleLoadFromMemory: failed to read pcm frames");
                 return nullptr;
             }
-            
+
             if (framesRead <= 0) {
-                break; // let it break here
+                break;
             }
         }
-        
+
         std::copy(buffer.begin(), buffer.begin() + framesRead * channels, std::back_inserter(pcmData));
         pcmSize += framesRead;
     }
-    
+
     ma_decoder_uninit(&decoder);
 
     EST_Sample *sample = new EST_Sample;
     sample->channels = channels;
     sample->sampleRate = sampleRate;
-    sample->pcmSize = (int)pcmSize;
+    sample->pcmSize = static_cast<int>(pcmSize);
     sample->data = std::move(pcmData);
 
     return sample;
@@ -132,7 +137,7 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
             }
 
             if (framesRead <= 0) {
-                break; // let it break here
+                break;
             }
         }
 
@@ -145,7 +150,7 @@ EST_Sample *EST_SampleLoadFromMemory(const void *data, size_t size)
     EST_Sample *sample = new EST_Sample;
     sample->channels = channels;
     sample->sampleRate = sampleRate;
-    sample->pcmSize = (int)pcmSize;
+    sample->pcmSize = static_cast<int>(pcmSize);
     sample->data = std::move(pcmData);
 
     return sample;
@@ -158,7 +163,7 @@ EST_RESULT EST_SampleFree(EST_Sample *sample)
         return EST_ERROR;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)sample;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(sample);
     if (unknown->type != EST_UNKNOWN_SAMPLE) {
         EST_ErrorSetMessage("Invalid handle");
         return EST_ERROR_INVALID_ARGUMENT;
@@ -169,6 +174,11 @@ EST_RESULT EST_SampleFree(EST_Sample *sample)
     for (auto &channel : sample->channelsPlaying) {
         EST_ChannelStop(channel);
         EST_ChannelFree(channel);
+    }
+
+    // Free the FX's clone
+    if (sample->fx) {
+        EST_FXFree(sample->fx);
     }
 
     delete sample;
@@ -182,9 +192,13 @@ EST_Sample *EST_SampleLoadFromEncoder(EST_Encoder *handle)
         return nullptr;
     }
 
-    EST_Unknown *unknown = (EST_Unknown *)handle;
+    EST_Unknown *unknown = reinterpret_cast<EST_Unknown *>(handle);
     if (unknown->type != EST_UNKNOWN_ENCODER) {
-        auto msg = std::format("Invalid handle: {} (Expect: {})", EST_UnknownTypeToString(unknown->type), EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+        auto msg = std::format(
+            "Invalid handle: {} (Expect: {})",
+            EST_UnknownTypeToString(unknown->type),
+            EST_UnknownTypeToString(EST_UNKNOWN_ENCODER));
+
         EST_ErrorSetMessage(msg.c_str());
         return nullptr;
     }
@@ -199,7 +213,7 @@ EST_Sample *EST_SampleLoadFromEncoder(EST_Encoder *handle)
 
     int channels = handle->channels;
     int pcmSize = handle->numOfPcmProcessed;
-    int sampleRate = (int)handle->sampleRate;
+    int sampleRate = static_cast<int>(handle->sampleRate);
 
     EST_Sample *sample = new EST_Sample;
     sample->channels = channels;
