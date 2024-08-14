@@ -70,7 +70,29 @@ struct EST_Channel *Init(EST_Device *device, std::shared_ptr<EST_Channel> channe
     channel->channels = channels;
     channel->sampleRate = sampleRate;
     channel->buffer.ref.sampleRate = sampleRate;
-    channel->fx = fx;
+
+    if (fx != nullptr) {
+        auto fxInstance = new EST_FX_Instance();
+
+        fxInstance->attributes = fx->attributes;
+        fxInstance->processor = std::make_shared<SignalsmithStretch>();
+        fxInstance->processor->presetDefault(channels, static_cast<float>(sampleRate));
+
+        ma_resampler_config resamplerConfig2 = ma_resampler_config_init(
+            ma_format_f32,
+            channels,
+            sampleRate,
+            sampleRate,
+            ma_resample_algorithm_linear);
+
+        result = ma_resampler_init(&resamplerConfig2, nullptr, &fxInstance->resampler);
+        if (result != MA_SUCCESS) {
+            EST_ErrorSetMessage("Failed to initialize resampler");
+            return nullptr;
+        }
+
+        channel->fx = fxInstance;
+    }
 
     // Seek to the beginning of the channel, to refresh FX buffer if necessary
     EST_ChannelSeekPosition(channel.get(), EST_CHANNEL_POSITION_SAMPLES, 0);

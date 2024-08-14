@@ -8,7 +8,7 @@
 
 #include <windows.h>
 
-#define _FFT_TEST
+#define _FX_TEST
 
 int main()
 {
@@ -62,7 +62,7 @@ int main()
 
     EST_ChannelPlay(channel, EST_FALSE);
 
-    est_attribute_value value;
+    est_attribute_value value = {};
 
     bool isPlaying = true;
     while (isPlaying) {
@@ -76,33 +76,33 @@ int main()
             case 'w':
             {
                 value.attribute = EST_ATTRIB_FX_PITCH;
-                EST_FXGetAttribute(fx, &value);
+                EST_ChannelGetAttribute(channel, &value);
 
                 value.fValue = value.fValue == 1.5f ? 1.0f : 1.5f;
                 value.type = EST_ATTRIB_VAL_FLOAT;
-                EST_FXSetAttribute(fx, &value);
+                EST_ChannelSetAttribute(channel, &value);
                 break;
             }
 
             case 'e':
             {
                 value.attribute = EST_ATTRIB_FX_TEMPO;
-                EST_FXGetAttribute(fx, &value);
+                EST_ChannelGetAttribute(channel, &value);
 
                 value.fValue = value.fValue == 1.5f ? 1.0f : 1.5f;
                 value.type = EST_ATTRIB_VAL_FLOAT;
-                EST_FXSetAttribute(fx, &value);
+                EST_ChannelSetAttribute(channel, &value);
                 break;
             }
 
             case 'd':
             {
                 value.attribute = EST_ATTRIB_FX_TEMPO;
-                EST_FXGetAttribute(fx, &value);
+                EST_ChannelGetAttribute(channel, &value);
 
                 value.fValue = value.fValue == 0.5f ? 1.0f : 0.5f;
                 value.type = EST_ATTRIB_VAL_FLOAT;
-                EST_FXSetAttribute(fx, &value);
+                EST_ChannelSetAttribute(channel, &value);
                 break;
             }
 

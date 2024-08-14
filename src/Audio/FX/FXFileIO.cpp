@@ -17,21 +17,6 @@ EST_FX *FXInternalLoad(std::vector<float> &data, int channels, int sampleRate, i
     fx->channels = channels;
     fx->pcmSize = pcmSize;
     fx->sampleRate = sampleRate;
-    fx->processor = std::make_shared<SignalsmithStretch>();
-    fx->processor->presetDefault(channels, static_cast<float>(sampleRate));
-
-    ma_resampler_config config = ma_resampler_config_init(
-        ma_format_f32,
-        channels,
-        sampleRate,
-        sampleRate,
-        ma_resample_algorithm_linear);
-
-    ma_result result = ma_resampler_init(&config, nullptr, &fx->resampler);
-    if (result != MA_SUCCESS) {
-        EST_ErrorSetMessage("EST_FXLoad: Failed to initialize resampler");
-        return nullptr;
-    }
 
     return fx;
 }
@@ -172,8 +157,6 @@ void EST_FXFree(EST_FX *fx)
     if (!fx) {
         return;
     }
-
-    ma_resampler_uninit(&fx->resampler, nullptr);
 
     delete fx;
 }

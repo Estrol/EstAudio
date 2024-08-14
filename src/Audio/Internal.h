@@ -47,9 +47,17 @@ struct EST_FX
     int                pcmSize = 0;
 
     EST_FX_Attributes attributes = {};
+};
 
-    int  framesAvailable = 0;
-    bool lock = false;
+struct EST_FX_Instance
+{
+    EST_Unknown base = {
+        EST_UNKNOWN_FX_INSTANCE
+    };
+
+    EST_FX_Attributes attributes = {};
+    int               framesAvailable = 0;
+    bool              lock = false;
 
     std::shared_ptr<SignalsmithStretch> processor = {};
     ma_resampler                        resampler = {}; // used for calculate the required buffer size
@@ -110,7 +118,7 @@ struct EST_Channel
 
     std::vector<EST_DataCallback> callbacks;
 
-    EST_FX *fx = nullptr;
+    EST_FX_Instance *fx = nullptr;
 };
 
 struct EST_ChannelDestructor

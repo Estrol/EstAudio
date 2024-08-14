@@ -20,7 +20,6 @@ EST_RESULT EST_FXSetAttribute(struct EST_FX *fx, est_attribute_value *value)
             }
 
             fx->attributes.pitch = value->fValue;
-            fx->processor->setTransposeFactor(value->fValue);
             break;
         }
 
@@ -31,11 +30,6 @@ EST_RESULT EST_FXSetAttribute(struct EST_FX *fx, est_attribute_value *value)
             }
 
             fx->attributes.tempo = value->fValue;
-
-            ma_uint32 originSample = fx->sampleRate;
-            ma_uint32 target = (ma_uint64)(originSample * value->fValue);
-
-            ma_resampler_set_rate(&fx->resampler, target, originSample);
             break;
         }
     }

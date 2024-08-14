@@ -193,7 +193,7 @@ static void SeekFX(EST_Channel *handle)
 
     // Get required sample size for initial buffer
     int                framesRequiredForInputBuffer = fx->processor->inputLatency() * 2;
-    std::vector<float> buffer(framesRequiredForInputBuffer * fx->channels, 0.0f);
+    std::vector<float> buffer(framesRequiredForInputBuffer * handle->channels, 0.0f);
 
     // Read and seek the buffer
     framesRequiredForInputBuffer = (int)ma_audio_buffer_read_pcm_frames(&handle->buffer, &buffer[0], framesRequiredForInputBuffer, MA_FALSE);
@@ -202,7 +202,7 @@ static void SeekFX(EST_Channel *handle)
     }
 
     // Initialize the dummy buffer
-    std::vector<float> temp(framesRequiredForInputBuffer * fx->channels, 0.0f);
+    std::vector<float> temp(framesRequiredForInputBuffer * handle->channels, 0.0f);
     fx->processor->process(buffer, framesRequiredForInputBuffer, temp, framesRequiredForInputBuffer);
 
     fx->framesAvailable = framesRequiredForInputBuffer;

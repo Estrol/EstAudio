@@ -12,7 +12,8 @@ enum EST_UnknownType {
     EST_UNKNOWN_ENCODER,
     EST_UNKNOWN_DATA_CALLBACK,
     EST_UNKNOWN_ENCODER_CALLBACK,
-    EST_UNKNOWN_FX
+    EST_UNKNOWN_FX,
+    EST_UNKNOWN_FX_INSTANCE
 };
 
 const char *EST_UnknownTypeToString(EST_UnknownType type);
