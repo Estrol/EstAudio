@@ -39,7 +39,7 @@ static ma_uint64 read_pcm_data(EST_Channel *channel, float *output, ma_uint64 fr
                 targetToReadThisIteration,
                 MA_FALSE);
 
-            if (targetToReadThisIteration < targetToReadThisIteration) {
+            if (targetToReadThisIteration >= availableFrames) {
                 fx->framesAvailable += fx->processor->outputLatency();
             } else {
                 fx->framesAvailable += static_cast<int>(targetThisIteration);

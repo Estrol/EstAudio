@@ -205,7 +205,7 @@ EST_Sample *EST_FXCreateSample(EST_FX *fx)
     return sample;
 }
 
-EST_Channel *EST_FXCreateChannel(EST_FX *fx, EST_Device *device)
+EST_Channel *EST_FXCreateChannel(EST_Device *device, EST_FX *fx)
 {
     if (!fx) {
         EST_ErrorSetMessage("EST_FXCreateChannel: Invalid EST_FX");

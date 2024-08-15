@@ -245,8 +245,8 @@ void md5File(FILE *file, uint8_t *result)
     }
 
     md5Finalize(&ctx);
-
+    
     free(input_buffer);
-
+    
     memcpy(result, ctx.digest, 16);
 }

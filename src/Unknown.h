@@ -28,4 +28,15 @@ struct EST_Unknown
     EST_UnknownType type = EST_UNKNOWN_NONE;
 };
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+EST_API const void** EST_GetFunctionTable();
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

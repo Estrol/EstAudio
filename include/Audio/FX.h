@@ -47,7 +47,7 @@ EST_API struct EST_Sample *EST_FXCreateSample(struct EST_FX *fx);
  * @param device The EST_Device object
  * @return EST_Channel* The EST_Channel object
  */
-EST_API struct EST_Channel *EST_FXCreateChannel(struct EST_FX *fx, struct EST_Device *device);
+EST_API struct EST_Channel *EST_FXCreateChannel(struct EST_Device *device, struct EST_FX *fx);
 
 /**
  * Set the attribute of the EST_FX object

@@ -93,7 +93,7 @@ int main()
             {
                 value.attribute = EST_ATTRIB_FX_TEMPO;
                 EST_ChannelGetAttribute(channel, &value);
-
+                
                 value.fValue = value.fValue == 1.5f ? 1.0f : 1.5f;
                 value.type = EST_ATTRIB_VAL_FLOAT;
                 EST_ChannelSetAttribute(channel, &value);
@@ -151,6 +151,7 @@ int main()
 
     EST_ChannelFree(ch);
 #endif
+
 
     EST_DeviceFree(dev);
     return 0;
